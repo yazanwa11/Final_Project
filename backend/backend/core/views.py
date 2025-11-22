@@ -13,6 +13,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
+
 
 # --- Auth / Users ---
 class RegisterView(generics.CreateAPIView):
@@ -101,9 +103,26 @@ def add_care_log(request, plant_id):
 
     serializer = CareLogSerializer(data=data, context={"request": request})
     if serializer.is_valid():
-        serializer.save(user=request.user, plant_id=plant_id)
+        log = serializer.save(user=request.user, plant_id=plant_id)
+
+        # --- 🌱 Update reminder dates automatically ---
+        try:
+            plant = Plant.objects.get(id=plant_id, user=request.user)
+
+            if log.action.lower() == "watered":
+                plant.last_watered = timezone.now()
+
+            if log.action.lower() == "sunlight":
+                plant.last_sunlight = timezone.now()
+
+            plant.save()
+        except Plant.DoesNotExist:
+            pass
+
         return Response(serializer.data, status=201)
+
     return Response(serializer.errors, status=400)
+
 
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
@@ -114,3 +133,28 @@ def delete_care_log(request, log_id):
         return Response({"message": "Deleted"}, status=200)
     except CareLog.DoesNotExist:
         return Response({"error": "Not found"}, status=404)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_reminders(request, plant_id):
+    try:
+        plant = Plant.objects.get(id=plant_id, user=request.user)
+    except Plant.DoesNotExist:
+        return Response({"error": "Plant not found"}, status=404)
+
+    watering = request.data.get("watering_interval")
+    sunlight = request.data.get("sunlight_interval")
+
+    if watering is not None:
+        plant.watering_interval = watering
+    if sunlight is not None:
+        plant.sunlight_interval = sunlight
+
+    plant.save()
+
+    return Response({
+        "message": "Reminders updated",
+        "watering_interval": plant.watering_interval,
+        "sunlight_interval": plant.sunlight_interval
+    })

@@ -19,6 +19,8 @@ urlpatterns = [
     path("plants/<int:plant_id>/logs/", views.get_care_logs),
     path("plants/<int:plant_id>/logs/add/", views.add_care_log),
     path("logs/<int:log_id>/delete/", views.delete_care_log),
+    path("plants/<int:plant_id>/reminders/", views.update_reminders),
+
     # Plants
     path('', include(router.urls)),
 ]

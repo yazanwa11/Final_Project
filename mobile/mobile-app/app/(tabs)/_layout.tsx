@@ -1,3 +1,4 @@
+// app/(tabs)/_layout.tsx
 import React from "react";
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -41,6 +42,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="HomeScreen"
         options={{
@@ -50,6 +52,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="AddPlantScreen"
         options={{
@@ -59,16 +62,17 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="MyPlantsScreen"
         options={{
           title: "My Plants",
           tabBarIcon: ({ color, size }) => (
             <Feather name="droplet" size={size} color={color} />
-
           ),
         }}
       />
+
       <Tabs.Screen
         name="ProfileScreen"
         options={{

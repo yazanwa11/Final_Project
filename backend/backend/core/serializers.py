@@ -25,17 +25,54 @@ from .models import Plant
 
 
 class PlantSerializer(serializers.ModelSerializer):
+    next_watering_date = serializers.SerializerMethodField()
+    next_sunlight_date = serializers.SerializerMethodField()
+
     class Meta:
         model = Plant
-        fields = ['id', 'name', 'category', 'location', 'planting_date', 'image', 'created_at']
+        fields = [
+            'id',
+            'name',
+            'category',
+            'location',
+            'planting_date',
+            'image',
+            'created_at',
+            'watering_interval',
+            'sunlight_interval',
+            'next_watering_date',
+            'next_sunlight_date',
+            'last_watered',
+            'last_sunlight',
+        ]
         read_only_fields = ['id', 'created_at']
+
+    def get_next_watering_date(self, obj):
+        if not obj.watering_interval:
+            return None
+        if not obj.planting_date:
+            return None
+
+        from datetime import timedelta, date
+        return obj.planting_date + timedelta(days=obj.watering_interval)
+
+    def get_next_sunlight_date(self, obj):
+        if not obj.sunlight_interval:
+            return None
+        if not obj.planting_date:
+            return None
+
+        from datetime import timedelta, date
+        return obj.planting_date + timedelta(days=obj.sunlight_interval)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        request = self.context.get('request')
-        if instance.image and hasattr(instance.image, 'url'):
-            data['image'] = request.build_absolute_uri(instance.image.url)
+        request = self.context.get("request")
+        if instance.image and hasattr(instance.image, "url"):
+            data["image"] = request.build_absolute_uri(instance.image.url)
         return data
+
+
 
 
 

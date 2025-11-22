@@ -28,6 +28,12 @@ class Plant(models.Model):
     planting_date = models.DateField(null=True, blank=True)
     image = models.ImageField(upload_to='plants/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    watering_interval = models.IntegerField(default=3)  # days
+    sunlight_interval = models.IntegerField(default=1)  # days
+    last_watered = models.DateTimeField(null=True, blank=True)
+    last_sunlight = models.DateTimeField(null=True, blank=True)
+
+
 
     def __str__(self):
         return self.name
@@ -65,3 +71,16 @@ class CareLog(models.Model):
 
     def __str__(self):
         return f"{self.plant.name} - {self.action}"
+
+
+class Reminder(models.Model):
+    plant = models.ForeignKey(Plant, on_delete=models.CASCADE, related_name="reminders")
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    type = models.CharField(max_length=50, choices=[
+        ("Watering", "Watering"),
+        ("Sunlight", "Sunlight"),
+        ("Fertilizing", "Fertilizing"),
+    ])
+    frequency_days = models.IntegerField()   # every X days
+    next_run = models.DateTimeField()        # when next notification should fire
+    created_at = models.DateTimeField(auto_now_add=True)

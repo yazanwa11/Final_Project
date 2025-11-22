@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
+
 export default function AddPlantScreen() {
     const router = useRouter();
     const [name, setName] = useState("");
@@ -26,9 +27,9 @@ export default function AddPlantScreen() {
     const [date, setDate] = useState("");
     const [image, setImage] = useState<string | null>(null);
     const [successVisible, setSuccessVisible] = useState(false);
-
+    const [duplicateModalVisible, setDuplicateModalVisible] = useState(false);
+    const scaleAnim = useRef(new Animated.Value(0.8)).current;
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const scaleAnim = useRef(new Animated.Value(0.85)).current;
 
     // 📸 Pick image from gallery
     const pickImage = async () => {
@@ -92,14 +93,40 @@ export default function AddPlantScreen() {
     // 🌿 Save plant
     const savePlant = async () => {
         if (!name.trim()) return Alert.alert("Please enter the plant name 🌿");
+
         const formattedCategory = formatCategory(category);
         if (!formattedCategory)
-            return Alert.alert("Category must be: Vegetable, Flower, Herb, Tree, or Indoor");
+            return Alert.alert("Category must be one of: Vegetable, Flower, Herb, Tree, Indoor");
 
         try {
             const token = await AsyncStorage.getItem("access");
             if (!token) return Alert.alert("You must be logged in!");
 
+            // ✅ 1. CHECK FOR DUPLICATE BEFORE UPLOADING
+            const existingPlantsReq = await fetch("http://10.0.2.2:8000/api/plants/", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const existingPlants = await existingPlantsReq.json();
+
+            const exists = existingPlants.some(
+                (p: any) => p.name.trim().toLowerCase() === name.trim().toLowerCase()
+            );
+
+            if (exists) {
+                setDuplicateModalVisible(true);
+
+                Animated.spring(scaleAnim, {
+                    toValue: 1,
+                    friction: 6,
+                    useNativeDriver: true
+                }).start();
+
+                return;
+            }
+
+
+
+            // 2. Proceed with upload
             const formData = new FormData();
             formData.append("name", name);
             formData.append("category", formattedCategory);
@@ -138,7 +165,9 @@ export default function AddPlantScreen() {
     };
 
 
+
     return (
+
         <SafeAreaView style={styles.safeArea}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
                 {/* HEADER */}
@@ -228,6 +257,31 @@ export default function AddPlantScreen() {
                     </LinearGradient>
                 </Animated.View>
             )}
+            {duplicateModalVisible && (
+                <View style={styles.overlay}>
+                    <Animated.View style={[styles.duplicateModal, { transform: [{ scale: scaleAnim }] }]}>
+
+                        <View style={styles.iconCircle}>
+                            <Feather name="alert-triangle" size={40} color="#3e7c52" />
+                        </View>
+
+                        <Text style={styles.dupTitle}>This Plant Already Exists 🌱</Text>
+                        <Text style={styles.dupMessage}>
+                            You’ve already added a plant with this name.
+                            Please choose a different one to keep your garden tidy.
+                        </Text>
+
+                        <TouchableOpacity
+                            style={styles.dupButton}
+                            onPress={() => setDuplicateModalVisible(false)}
+                        >
+                            <Text style={styles.dupButtonText}>OK</Text>
+                        </TouchableOpacity>
+
+                    </Animated.View>
+                </View>
+            )}
+
         </SafeAreaView>
     );
 }
@@ -319,5 +373,64 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         elevation: 8,
     },
+    // Duplicate Modal
+    overlay: {
+        position: "absolute",
+        top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.35)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+
+    duplicateModal: {
+        width: "80%",
+        backgroundColor: "#ffffff",
+        padding: 25,
+        borderRadius: 20,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+        elevation: 10,
+    },
+
+    iconCircle: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: "#e8f3eb",
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 15,
+    },
+
+    dupTitle: {
+        fontSize: 20,
+        fontWeight: "900",
+        color: "#3e7c52",
+        marginBottom: 8,
+        textAlign: "center",
+    },
+
+    dupMessage: {
+        fontSize: 15,
+        color: "#55705e",
+        textAlign: "center",
+        marginBottom: 20,
+    },
+
+    dupButton: {
+        backgroundColor: "#3e7c52",
+        paddingVertical: 10,
+        paddingHorizontal: 45,
+        borderRadius: 12,
+    },
+
+    dupButtonText: {
+        color: "#fff",
+        fontWeight: "800",
+        fontSize: 16,
+    },
+
     successText: { fontSize: 18, fontWeight: "700", color: "#2b5938", marginTop: 12 },
 });

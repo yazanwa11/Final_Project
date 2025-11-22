@@ -1,83 +1,82 @@
-import React from "react";
-import {  useEffect, useState, useRef } from "react";
+// FULL FINAL HOME SCREEN WITH SMART TASKS (WHITE + MINT THEME)
+
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
   StatusBar,
   Animated,
   Image,
   Easing,
+  StyleSheet,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native"; // ⭐ IMPORTANT
+import { useFocusEffect } from "@react-navigation/native";
+
+// =========================================================
+// UTILITIES
+// =========================================================
+
+const DAY = 86400000;
+
+function timeRemaining(timestamp: number) {
+  const now = Date.now();
+  const diff = timestamp - now;
+
+  if (diff <= 0) return { text: "Overdue", overdue: true };
+
+  const mins = Math.floor(diff / 60000);
+  const days = Math.floor(mins / 1440);
+  const hours = Math.floor((mins % 1440) / 60);
+  const minutes = mins % 60;
+
+  if (days > 0) return { text: `${days}d ${hours}h`, overdue: false };
+  if (hours > 0) return { text: `${hours}h ${minutes}m`, overdue: false };
+  return { text: `${minutes}m`, overdue: false };
+}
+
+function isToday(timestamp: number) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  return (
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear()
+  );
+}
+
+function isTomorrow(timestamp: number) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+
+  return (
+    date.getDate() === tomorrow.getDate() &&
+    date.getMonth() === tomorrow.getMonth() &&
+    date.getFullYear() === tomorrow.getFullYear()
+  );
+}
+
+// =========================================================
+// HOME SCREEN
+// =========================================================
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [user, setUser] = useState<{
-    username: string;
-    email: string;
-    avatar?: string | null; // ⭐ ADD avatar field
-  } | null>(null);
+
+  const [user, setUser] = useState<any>(null);
+  const [plants, setPlants] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
-  const [greeting, setGreeting] = useState("");
-
-  // ⭐ Fetch user each time screen becomes active
-  useFocusEffect(
-    React.useCallback(() => {
-      const fetchUser = async () => {
-        try {
-          const token = await AsyncStorage.getItem("access");
-          if (!token) return;
-
-          const res = await fetch("http://10.0.2.2:8000/api/users/me/", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            console.log("USER FROM API:", data); // ⭐ DEBUG LOG
-            setUser(data);
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      };
-
-      fetchUser();
-    }, [])
-  );
-
-  // Greeting + animations
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 1000,
-        easing: Easing.out(Easing.exp),
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting("Good Morning");
-    else if (hour < 18) setGreeting("Good Afternoon");
-    else setGreeting("Good Evening");
-  }, []);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -85,16 +84,147 @@ export default function HomeScreen() {
     day: "numeric",
   });
 
+  // =========================================================
+  // LOAD USER + PLANTS
+  // =========================================================
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUser();
+      loadPlants();
+    }, [])
+  );
+
+  const loadUser = async () => {
+    const token = await AsyncStorage.getItem("access");
+    if (!token) return;
+
+    const res = await fetch("http://10.0.2.2:8000/api/users/me/", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setUser(await res.json());
+  };
+
+  const loadPlants = async () => {
+    const token = await AsyncStorage.getItem("access");
+    if (!token) return;
+
+    const res = await fetch("http://10.0.2.2:8000/api/plants/", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) return;
+
+    const data = await res.json();
+    setPlants(data);
+    buildTasks(data);
+  };
+
+  // =========================================================
+  // BUILD ACCURATE TASKS
+  // =========================================================
+
+  const buildTasks = (plants: any[]) => {
+    const list: any[] = [];
+    const now = Date.now();
+
+    plants.forEach((p) => {
+      // WATERING
+      if (p.last_watered) {
+        const last = new Date(p.last_watered).getTime();
+        let nextWater = last + p.watering_interval * DAY;
+
+        // If backend next_watering_date is valid and in the future use it
+        if (p.next_watering_date) {
+          const backendDate = new Date(p.next_watering_date).getTime();
+          if (backendDate > now) nextWater = backendDate;
+        }
+
+        list.push({
+          plantId: p.id,
+          name: p.name,
+          type: "Water",
+          icon: "droplet",
+          timestamp: nextWater,
+          ...timeRemaining(nextWater),
+        });
+      }
+
+      // SUNLIGHT
+      if (p.last_sunlight) {
+        const last = new Date(p.last_sunlight).getTime();
+        let nextSun = last + p.sunlight_interval * DAY;
+
+        if (p.next_sunlight_date) {
+          const backendDate = new Date(p.next_sunlight_date).getTime();
+          if (backendDate > now) nextSun = backendDate;
+        }
+
+        list.push({
+          plantId: p.id,
+          name: p.name,
+          type: "Sunlight",
+          icon: "sun",
+          timestamp: nextSun,
+          ...timeRemaining(nextSun),
+        });
+      }
+    });
+
+    // Sort by urgency
+    list.sort((a, b) => a.timestamp - b.timestamp);
+
+    setTasks(list);
+  };
+
+  // =========================================================
+  // ANIMATIONS
+  // =========================================================
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 900,
+        easing: Easing.out(Easing.exp),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // =========================================================
+  // GROUP TASKS
+  // =========================================================
+
+  const overdue = tasks.filter((t) => t.overdue);
+  const todayTasks = tasks.filter((t) => !t.overdue && isToday(t.timestamp));
+  const tomorrowTasks = tasks.filter((t) => isTomorrow(t.timestamp));
+  const laterTasks = tasks.filter(
+    (t) => !t.overdue && !isToday(t.timestamp) && !isTomorrow(t.timestamp)
+  );
+
+  const mostUrgent = tasks.length > 0 ? tasks[0] : null;
+
+  // =========================================================
+  // RENDER
+  // =========================================================
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <LinearGradient
         colors={["#f9faf9", "#e8f0eb", "#dae7df"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
         style={styles.background}
       >
-        <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+        <StatusBar barStyle="dark-content" translucent />
+
         <ScrollView contentContainerStyle={styles.scroll}>
+
+          {/* HEADER CARD */}
           <Animated.View
             style={[
               styles.heroCard,
@@ -111,12 +241,17 @@ export default function HomeScreen() {
                 <View>
                   <Text style={styles.date}>{today}</Text>
                   <Text style={styles.greeting}>
-                    {greeting},{" "}
-                    <Text style={styles.username}>{user?.username || "Buddy"} 🌿</Text>
+                    Welcome,
+                    <Text style={styles.username}>
+                      {" "}
+                      {user?.username || "Buddy"} 🌿
+                    </Text>
                   </Text>
                 </View>
 
-                <TouchableOpacity onPress={() => router.push("(tabs)/ProfileScreen" as any)}>
+                <TouchableOpacity
+                  onPress={() => router.push("(tabs)/ProfileScreen" as any)}
+                >
                   <Image
                     source={{
                       uri:
@@ -131,72 +266,125 @@ export default function HomeScreen() {
             </LinearGradient>
           </Animated.View>
 
-          {/* Quick Actions */}
-          <Animated.View
-            style={{
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            }}
-          >
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.addButton]}
-                onPress={() => router.push("/(tabs)/AddPlantScreen" as any)}
-              >
-                <Feather name="plus-circle" size={20} color="#fff" />
-                <Text style={styles.actionText}>Add Plant</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionButton, styles.myPlantsButton]}
-                onPress={() => router.push("/(tabs)/MyPlantsScreen" as any)}
-              >
-                <Ionicons name="leaf-outline" size={20} color="#fff" />
-                <Text style={styles.actionText}>My Plants</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-
-          {/* Dashboard Cards */}
-          <View style={styles.cardGrid}>
-            {[
-              { emoji: "🌿", title: "My Plants", value: "8" },
-              { emoji: "💧", title: "Upcoming Tasks", value: "3" },
-              { emoji: "🌞", title: "Growth Progress", value: "75%" },
-              { emoji: "🪴", title: "Recent Logs", value: "5 logs" },
-            ].map((item, i) => (
-              <Animated.View
-                key={i}
-                style={[
-                  styles.card,
-                  { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-                ]}
-              >
-                <Text style={styles.cardEmoji}>{item.emoji}</Text>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardValue}>{item.value}</Text>
-              </Animated.View>
-            ))}
+          {/* SUMMARY SECTION */}
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryText}>
+              🌱 Plants: {plants.length}
+            </Text>
+            <Text style={styles.summaryText}>
+              💧 Tasks: {tasks.length}
+            </Text>
+            <Text style={styles.summaryText}>
+              ⏰ Overdue: {overdue.length}
+            </Text>
           </View>
 
-          <Text style={styles.footer}>GreenBuddy 🌱 — Where Nature Meets Tech</Text>
+          {/* MOST URGENT TASK */}
+          {mostUrgent && (
+            <View style={styles.taskHighlight}>
+              <Text style={styles.sectionTitle}>Most Urgent</Text>
+
+              <View style={styles.taskCard}>
+                <Feather
+                  name={mostUrgent.icon}
+                  size={24}
+                  color="#3e7c52"
+                  style={{ marginRight: 10 }}
+                />
+                <View>
+                  <Text style={styles.taskName}>
+                    {mostUrgent.type} — {mostUrgent.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.taskTime,
+                      mostUrgent.overdue && { color: "#b91c1c" },
+                    ]}
+                  >
+                    {mostUrgent.overdue
+                      ? "Overdue"
+                      : `In ${mostUrgent.text}`}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* UPCOMING TASKS SECTIONS */}
+          {overdue.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Overdue</Text>
+              {overdue.map((t, i) => (
+                <View key={i} style={styles.taskItemOverdue}>
+                  <Feather name={t.icon} size={20} color="#b91c1c" />
+                  <Text style={styles.taskName}>{t.type} — {t.name}</Text>
+                  <Text style={styles.taskOverdue}>Overdue</Text>
+                </View>
+              ))}
+            </>
+          )}
+
+          {todayTasks.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Today</Text>
+              {todayTasks.map((t, i) => (
+                <View key={i} style={styles.taskItem}>
+                  <Feather name={t.icon} size={20} color="#3e7c52" />
+                  <Text style={styles.taskName}>{t.type} — {t.name}</Text>
+                  <Text style={styles.taskTime}>In {t.text}</Text>
+                </View>
+              ))}
+            </>
+          )}
+
+          {tomorrowTasks.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Tomorrow</Text>
+              {tomorrowTasks.map((t, i) => (
+                <View key={i} style={styles.taskItem}>
+                  <Feather name={t.icon} size={20} color="#3e7c52" />
+                  <Text style={styles.taskName}>{t.type} — {t.name}</Text>
+                  <Text style={styles.taskTime}>In {t.text}</Text>
+                </View>
+              ))}
+            </>
+          )}
+
+          {laterTasks.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Later</Text>
+              {laterTasks.map((t, i) => (
+                <View key={i} style={styles.taskItem}>
+                  <Feather name={t.icon} size={20} color="#3e7c52" />
+                  <Text style={styles.taskName}>{t.type} — {t.name}</Text>
+                  <Text style={styles.taskTime}>In {t.text}</Text>
+                </View>
+              ))}
+            </>
+          )}
+
         </ScrollView>
       </LinearGradient>
     </SafeAreaView>
   );
 }
 
+// =========================================================
+// STYLES
+// =========================================================
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#f9faf9" },
   background: { flex: 1 },
-  scroll: { paddingHorizontal: 20, paddingBottom: 100 },
+  scroll: { paddingHorizontal: 20, paddingBottom: 70 },
+
   heroCard: {
     marginTop: 30,
     borderRadius: 25,
     overflow: "hidden",
     shadowColor: "#3e7c52",
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
+    shadowOpacity: 0.15,
+    shadowRadius: 14,
     elevation: 6,
   },
   headerGradient: { padding: 25 },
@@ -205,9 +393,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+
   date: { fontSize: 14, color: "#666", marginBottom: 4 },
-  greeting: { fontSize: 24, fontWeight: "700", color: "#2e4d35" },
+  greeting: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#2e4d35",
+  },
   username: { color: "#4b9560" },
+
   avatar: {
     width: 55,
     height: 55,
@@ -215,58 +409,90 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#5f9c6c",
   },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 25,
-    marginBottom: 30,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  addButton: { backgroundColor: "#3e7c52" },
-  myPlantsButton: { backgroundColor: "#5f9c6c" },
-  actionText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 15,
-    marginLeft: 8,
-  },
-  cardGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  card: {
-    width: "47%",
-    backgroundColor: "#ffffffdd",
+
+  summaryCard: {
+    marginTop: 20,
+    padding: 20,
     borderRadius: 20,
-    paddingVertical: 30,
-    paddingHorizontal: 15,
-    alignItems: "center",
-    marginBottom: 20,
-    shadowColor: "#3e7c52",
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 5,
+    backgroundColor: "#ffffffdd",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 3,
   },
-  cardEmoji: { fontSize: 30, marginBottom: 6 },
-  cardTitle: { fontSize: 15, color: "#555" },
-  cardValue: { fontSize: 20, fontWeight: "bold", color: "#3e7c52", marginTop: 4 },
-  footer: {
-    textAlign: "center",
-    color: "#7c8d7d",
+  summaryText: {
+    fontSize: 16,
+    color: "#3e7c52",
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+
+  sectionTitle: {
+    marginTop: 25,
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#3e7c52",
+    marginBottom: 10,
+  },
+
+  taskHighlight: {
+    marginTop: 20,
+  },
+
+  taskCard: {
+    flexDirection: "row",
+    backgroundColor: "#ffffffdd",
+    padding: 18,
+    borderRadius: 18,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+
+  taskName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#2e4d35",
+  },
+
+  taskTime: {
+    fontSize: 14,
+    color: "#4b9560",
+    marginTop: 3,
+  },
+
+  taskOverdue: {
+    fontSize: 14,
+    color: "#b91c1c",
+    marginLeft: "auto",
+    fontWeight: "700",
+  },
+
+  taskItem: {
+    flexDirection: "row",
+    padding: 15,
+    backgroundColor: "#ffffffdd",
+    borderRadius: 16,
     marginTop: 10,
-    fontSize: 13,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
+  taskItemOverdue: {
+    flexDirection: "row",
+    padding: 15,
+    backgroundColor: "#ffefef",
+    borderRadius: 16,
+    marginTop: 10,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });
