@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Image,
@@ -12,7 +11,9 @@ import {
   Animated,
 } from "react-native";
 import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
+import { signupStyles as styles } from "../styles/signup.styles";
 
 export default function SignupScreen() {
   const [name, setName] = useState("");
@@ -21,8 +22,6 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [successVisible, setSuccessVisible] = useState(false);
-
-  // Animation
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
   const showSuccess = () => {
@@ -51,16 +50,12 @@ export default function SignupScreen() {
         }),
       });
 
-      const text = await response.text();
-      console.log("Signup raw response:", text);
-
       if (response.ok) {
         showSuccess();
       } else {
-        alert("Signup failed: " + text);
+        alert("Signup failed");
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert("Something went wrong!");
     }
   };
@@ -70,62 +65,88 @@ export default function SignupScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.container}>
-        {/* Logo */}
+      {/* SAME BACKGROUND AS LOGIN */}
+      <LinearGradient
+        colors={["#d8f3dc", "#f6fff8"]}
+        style={styles.container}
+      >
+        {/* LOGO */}
         <Image
-          source={{ uri: "https://cdn-icons-png.flaticon.com/512/892/892926.png" }}
+          source={{ uri: "https://cdn-icons-png.flaticon.com/128/6670/6670681.png" }}
           style={styles.logo}
         />
 
-        {/* Title */}
         <Text style={styles.title}>Create Account 🌱</Text>
         <Text style={styles.subtitle}>Sign up to start your journey</Text>
 
-        {/* Inputs */}
+        {/* INPUTS */}
         <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Username"
-            placeholderTextColor="#999"
-            value={name}
-            onChangeText={setName}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Email Address"
-            placeholderTextColor="#999"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#999"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm Password"
-            placeholderTextColor="#999"
-            secureTextEntry
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-          />
+          <View style={styles.inputWrapper}>
+            <Feather name="user" size={18} color="#4a7856" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Username"
+              placeholderTextColor="#88a096"
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
+
+          <View style={styles.inputWrapper}>
+            <Feather name="mail" size={18} color="#4a7856" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              placeholderTextColor="#88a096"
+              value={email}
+              onChangeText={setEmail}
+            />
+          </View>
+
+          <View style={styles.inputWrapper}>
+            <Feather name="lock" size={18} color="#4a7856" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#88a096"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+          </View>
+
+          <View style={styles.inputWrapper}>
+            <Feather name="lock" size={18} color="#4a7856" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              placeholderTextColor="#88a096"
+              secureTextEntry
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+          </View>
         </View>
 
-        {/* Signup Button */}
+        {/* SIGN UP BUTTON */}
         <TouchableOpacity style={styles.button} onPress={handleSignup}>
-          <Text style={styles.buttonText}>Sign Up</Text>
+          <LinearGradient
+            colors={["#74c69d", "#52b788"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>Sign Up</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
-        {/* Login Redirect */}
+        {/* LOGIN LINK */}
         <TouchableOpacity onPress={() => router.push("/")}>
-          <Text style={styles.link}>Already have an account? Log in</Text>
+          <Text style={styles.link}>
+            Already have an account?{" "}
+            <Text style={styles.linkHighlight}>Log in</Text>
+          </Text>
         </TouchableOpacity>
 
-        {/* SUCCESS POPUP */}
+        {/* SUCCESS MODAL */}
         <Modal transparent visible={successVisible} animationType="fade">
           <View style={styles.modalOverlay}>
             <Animated.View
@@ -135,7 +156,7 @@ export default function SignupScreen() {
               ]}
             >
               <Feather name="check-circle" size={60} color="#4CAF50" />
-              <Text style={styles.modalTitle}>Welcome to GreenBuddy! 🌿</Text>
+              <Text style={styles.modalTitle}>Welcome to GreenBuddy 🌿</Text>
               <Text style={styles.modalMessage}>
                 Your account has been created successfully.
               </Text>
@@ -152,107 +173,7 @@ export default function SignupScreen() {
             </Animated.View>
           </View>
         </Modal>
-      </View>
+      </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
-
-// -------------------- STYLES --------------------
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fdfdfd",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 30,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  subtitle: {
-    fontSize: 15,
-    color: "#666",
-    marginBottom: 30,
-  },
-  inputContainer: {
-    width: "100%",
-    marginBottom: 20,
-  },
-  input: {
-    width: "100%",
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    fontSize: 16,
-  },
-  button: {
-    width: "100%",
-    backgroundColor: "#4CAF50",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  link: {
-    color: "#4CAF50",
-    fontSize: 15,
-    fontWeight: "600",
-    marginTop: 15,
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalCard: {
-    width: "80%",
-    backgroundColor: "#fff",
-    padding: 25,
-    borderRadius: 20,
-    alignItems: "center",
-    elevation: 8,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#333",
-    marginTop: 15,
-  },
-  modalMessage: {
-    fontSize: 15,
-    textAlign: "center",
-    color: "#555",
-    marginVertical: 10,
-  },
-  modalButton: {
-    backgroundColor: "#4CAF50",
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-    marginTop: 10,
-  },
-  modalButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-});

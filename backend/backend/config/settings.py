@@ -9,6 +9,10 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 from pathlib import Path
 
@@ -151,3 +155,9 @@ DEBUG = True
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+
+import os
+
+TREFLE_API_TOKEN = os.getenv("TREFLE_API_TOKEN")  # if using env
+

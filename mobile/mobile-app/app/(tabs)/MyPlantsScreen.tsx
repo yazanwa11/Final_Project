@@ -179,20 +179,44 @@ export default function MyPlantsScreen() {
                 </ScrollView>
 
                 {/* Add Button */}
-                <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => router.push("/(tabs)/AddPlantScreen" as any)}
-                    activeOpacity={0.9}
-                >
-                    <LinearGradient
-                        colors={["#74c69d", "#52b788"]}
-                        style={styles.addGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                    >
-                        <Feather name="plus" size={30} color="#fff" />
-                    </LinearGradient>
-                </TouchableOpacity>
+                {/* Floating Actions */}
+                <View style={styles.fabWrap} pointerEvents="box-none">
+                    <View style={styles.fabDock}>
+                        <TouchableOpacity
+                            activeOpacity={0.9}
+                            style={styles.fabBtn}
+                            onPress={() => router.push("/(tabs)/AddPlantScreen" as any)}
+                        >
+                            <LinearGradient
+                                colors={["#2d6a4f", "#52b788"]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.fabBtnGrad}
+                            >
+                                <Feather name="plus" size={18} color="#fff" />
+                                <Text style={styles.fabBtnText}>Add plant</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            activeOpacity={0.9}
+                            style={styles.fabBtn}
+                            onPress={() => router.push("../suggested-plants" as any)}
+                        >
+                            <LinearGradient
+                                colors={["#74c69d", "#b7e4c7"]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.fabBtnGradAlt}
+                            >
+                                <Feather name="star" size={18} color="#1b4332" />
+
+                                <Text style={styles.fabBtnTextAlt}>Suggested</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
             </LinearGradient>
         </SafeAreaView>
     );
@@ -317,4 +341,55 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
+    fabWrap: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 18,
+        alignItems: "center",
+    },
+    fabDock: {
+        flexDirection: "row",
+        gap: 10,
+        padding: 10,
+        borderRadius: 999,
+        backgroundColor: "rgba(255,255,255,0.8)",
+        borderWidth: 1,
+        borderColor: "rgba(45,106,79,0.12)",
+        shadowColor: "#000",
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+        elevation: 10,
+    },
+    fabBtn: {
+        borderRadius: 999,
+        overflow: "hidden",
+    },
+    fabBtnGrad: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 999,
+    },
+    fabBtnGradAlt: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 999,
+    },
+    fabBtnText: {
+        color: "#fff",
+        fontWeight: "900",
+        fontSize: 14,
+    },
+    fabBtnTextAlt: {
+        color: "#1b4332",
+        fontWeight: "900",
+        fontSize: 14,
+    },
+
 });

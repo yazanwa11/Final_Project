@@ -10,6 +10,7 @@ import {
     Animated,
     Easing,
     Alert,
+    ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -18,25 +19,31 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
-
 export default function AddPlantScreen() {
     const router = useRouter();
+
     const [name, setName] = useState("");
     const [category, setCategory] = useState("");
     const [location, setLocation] = useState("");
     const [date, setDate] = useState("");
     const [image, setImage] = useState<string | null>(null);
+
+    const [saving, setSaving] = useState(false);
+
     const [successVisible, setSuccessVisible] = useState(false);
     const [duplicateModalVisible, setDuplicateModalVisible] = useState(false);
+
     const scaleAnim = useRef(new Animated.Value(0.8)).current;
     const fadeAnim = useRef(new Animated.Value(0)).current;
 
     // 📸 Pick image from gallery
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            quality: 0.9,
+            mediaTypes: ["images"],
+            allowsEditing: false,   // ✅ this is the key
+            quality: 0.8,
         });
+
         if (!result.canceled) setImage(result.assets[0].uri);
     };
 
@@ -87,22 +94,28 @@ export default function AddPlantScreen() {
                 setSuccessVisible(false);
                 router.replace("/(tabs)/MyPlantsScreen");
             });
-        }, 1500);
+        }, 1200);
     };
 
     // 🌿 Save plant
     const savePlant = async () => {
+        if (saving) return;
+
         if (!name.trim()) return Alert.alert("Please enter the plant name 🌿");
 
         const formattedCategory = formatCategory(category);
         if (!formattedCategory)
-            return Alert.alert("Category must be one of: Vegetable, Flower, Herb, Tree, Indoor");
+            return Alert.alert(
+                "Category must be one of: Vegetable, Flower, Herb, Tree, Indoor"
+            );
 
         try {
+            setSaving(true);
+
             const token = await AsyncStorage.getItem("access");
             if (!token) return Alert.alert("You must be logged in!");
 
-            // ✅ 1. CHECK FOR DUPLICATE BEFORE UPLOADING
+            // ✅ 1) Check duplicate before uploading
             const existingPlantsReq = await fetch("http://10.0.2.2:8000/api/plants/", {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -118,15 +131,13 @@ export default function AddPlantScreen() {
                 Animated.spring(scaleAnim, {
                     toValue: 1,
                     friction: 6,
-                    useNativeDriver: true
+                    useNativeDriver: true,
                 }).start();
 
                 return;
             }
 
-
-
-            // 2. Proceed with upload
+            // ✅ 2) Proceed with upload
             const formData = new FormData();
             formData.append("name", name);
             formData.append("category", formattedCategory);
@@ -134,14 +145,23 @@ export default function AddPlantScreen() {
             if (date) formData.append("planting_date", date);
 
             if (image) {
-                const filename = image.split("/").pop();
-                const filetype = filename?.split(".").pop();
-                formData.append("image", {
+                const filename = image.split("/").pop() || "plant.jpg";
+                const ext = filename.split(".").pop()?.toLowerCase();
+
+                const mime =
+                    ext === "png"
+                        ? "image/png"
+                        : ext === "jpg" || ext === "jpeg"
+                            ? "image/jpeg"
+                            : "image/jpeg";
+
+                formData.append("image_file", {
                     uri: image,
-                    name: filename || "plant.jpg",
-                    type: `image/${filetype}`,
+                    name: filename,
+                    type: mime,
                 } as any);
             }
+
 
             const response = await fetch("http://10.0.2.2:8000/api/plants/", {
                 method: "POST",
@@ -152,8 +172,9 @@ export default function AddPlantScreen() {
                 body: formData,
             });
 
-            if (response.ok) showSuccessMessage();
-            else {
+            if (response.ok) {
+                showSuccessMessage();
+            } else {
                 const err = await response.text();
                 console.log("❌ Upload error:", err);
                 Alert.alert("Failed to save plant.");
@@ -161,15 +182,17 @@ export default function AddPlantScreen() {
         } catch (e) {
             console.error(e);
             Alert.alert("Network Error", "Could not connect to the server.");
+        } finally {
+            setSaving(false);
         }
     };
 
-
-
     return (
-
         <SafeAreaView style={styles.safeArea}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 110 }}
+            >
                 {/* HEADER */}
                 <LinearGradient
                     colors={["#dbe6e1", "#f0f4f1", "#ffffff"]}
@@ -179,10 +202,42 @@ export default function AddPlantScreen() {
                 >
                     <Text style={styles.title}>🌱 Add Your Plant</Text>
                     <Text style={styles.subtitle}>Grow your peaceful garden</Text>
+
+                    {/* Modern Suggested Plants Button */}
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => router.push("../suggested-plants")}
+                        style={styles.suggestBtnWrap}
+                    >
+                        <LinearGradient
+                            colors={["#74c69d", "#b7e4c7"]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.suggestBtn}
+                        >
+                            <View style={styles.suggestLeft}>
+                                <View style={styles.suggestIconCircle}>
+                                    <Feather name="star" size={18} color="#1b4332" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.suggestTitle}>Suggested Plants</Text>
+                                    <Text style={styles.suggestSub}>
+                                        Pick a plant with ready schedule
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <Feather name="chevron-right" size={20} color="#1b4332" />
+                        </LinearGradient>
+                    </TouchableOpacity>
                 </LinearGradient>
 
                 {/* IMAGE PICKER */}
-                <TouchableOpacity onPress={pickImage} activeOpacity={0.8} style={styles.imageContainer}>
+                <TouchableOpacity
+                    onPress={pickImage}
+                    activeOpacity={0.8}
+                    style={styles.imageContainer}
+                >
                     {image ? (
                         <Image source={{ uri: image }} style={styles.image} />
                     ) : (
@@ -216,8 +271,17 @@ export default function AddPlantScreen() {
                             set: setDate,
                         },
                     ].map((item, i) => (
-                        <LinearGradient key={i} colors={["#ffffff", "#f7f7f7"]} style={styles.glassCard}>
-                            <Feather name={item.icon as any} size={18} color="#4f6f50" style={styles.icon} />
+                        <LinearGradient
+                            key={i}
+                            colors={["#ffffff", "#f7f7f7"]}
+                            style={styles.glassCard}
+                        >
+                            <Feather
+                                name={item.icon as any}
+                                size={18}
+                                color="#4f6f50"
+                                style={styles.icon}
+                            />
                             <TextInput
                                 placeholder={item.placeholder}
                                 placeholderTextColor="#999"
@@ -230,22 +294,41 @@ export default function AddPlantScreen() {
                 </View>
 
                 {/* SAVE BUTTON */}
-                <TouchableOpacity activeOpacity={0.85} style={styles.saveButton} onPress={savePlant}>
+                <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={[styles.saveButton, saving && { opacity: 0.85 }]}
+                    onPress={savePlant}
+                    disabled={saving}
+                >
                     <LinearGradient
                         colors={["#3e7c52", "#5f9c6c"]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.saveGradient}
                     >
-                        <Feather name="check-circle" size={24} color="#fff" />
-                        <Text style={styles.saveText}>Save Plant</Text>
+                        {saving ? (
+                            <>
+                                <ActivityIndicator color="#fff" />
+                                <Text style={styles.saveText}>Saving...</Text>
+                            </>
+                        ) : (
+                            <>
+                                <Feather name="check-circle" size={24} color="#fff" />
+                                <Text style={styles.saveText}>Save Plant</Text>
+                            </>
+                        )}
                     </LinearGradient>
                 </TouchableOpacity>
             </ScrollView>
 
             {/* SUCCESS OVERLAY */}
             {successVisible && (
-                <Animated.View style={[styles.successOverlay, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+                <Animated.View
+                    style={[
+                        styles.successOverlay,
+                        { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
+                    ]}
+                >
                     <LinearGradient
                         colors={["#d8f3dc", "#b7e4c7"]}
                         start={{ x: 0, y: 0 }}
@@ -257,18 +340,21 @@ export default function AddPlantScreen() {
                     </LinearGradient>
                 </Animated.View>
             )}
+
+            {/* DUPLICATE MODAL */}
             {duplicateModalVisible && (
                 <View style={styles.overlay}>
-                    <Animated.View style={[styles.duplicateModal, { transform: [{ scale: scaleAnim }] }]}>
-
+                    <Animated.View
+                        style={[styles.duplicateModal, { transform: [{ scale: scaleAnim }] }]}
+                    >
                         <View style={styles.iconCircle}>
                             <Feather name="alert-triangle" size={40} color="#3e7c52" />
                         </View>
 
                         <Text style={styles.dupTitle}>This Plant Already Exists 🌱</Text>
                         <Text style={styles.dupMessage}>
-                            You’ve already added a plant with this name.
-                            Please choose a different one to keep your garden tidy.
+                            You’ve already added a plant with this name. Please choose a different
+                            one to keep your garden tidy.
                         </Text>
 
                         <TouchableOpacity
@@ -277,20 +363,19 @@ export default function AddPlantScreen() {
                         >
                             <Text style={styles.dupButtonText}>OK</Text>
                         </TouchableOpacity>
-
                     </Animated.View>
                 </View>
             )}
-
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: "#f9faf9" },
+
     header: {
-        paddingVertical: 50,
-        paddingHorizontal: 25,
+        paddingVertical: 44,
+        paddingHorizontal: 22,
         borderBottomLeftRadius: 50,
         borderBottomRightRadius: 50,
         shadowColor: "#5f9c6c",
@@ -298,10 +383,74 @@ const styles = StyleSheet.create({
         shadowRadius: 15,
         elevation: 8,
     },
-    title: { fontSize: 30, fontWeight: "bold", color: "#355e3b", textAlign: "center" },
-    subtitle: { fontSize: 15, color: "#5f9c6c", textAlign: "center", marginTop: 8, fontStyle: "italic" },
+
+    title: {
+        fontSize: 30,
+        fontWeight: "bold",
+        color: "#355e3b",
+        textAlign: "center",
+    },
+    subtitle: {
+        fontSize: 15,
+        color: "#5f9c6c",
+        textAlign: "center",
+        marginTop: 8,
+        fontStyle: "italic",
+    },
+
+    // Suggested button inside header
+    suggestBtnWrap: {
+        marginTop: 18,
+        alignSelf: "center",
+        width: "100%",
+        maxWidth: 420,
+        borderRadius: 18,
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOpacity: 0.10,
+        shadowRadius: 10,
+        elevation: 6,
+    },
+    suggestBtn: {
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: "rgba(45,106,79,0.18)",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
+    suggestLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        flex: 1,
+        paddingRight: 10,
+    },
+    suggestIconCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: "rgba(255,255,255,0.7)",
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: "rgba(45,106,79,0.15)",
+    },
+    suggestTitle: {
+        fontSize: 15.5,
+        fontWeight: "900",
+        color: "#1b4332",
+    },
+    suggestSub: {
+        marginTop: 2,
+        fontSize: 12.5,
+        color: "#3a6b52",
+    },
+
     imageContainer: {
-        marginTop: -40,
+        marginTop: -34,
         alignSelf: "center",
         width: 180,
         height: 180,
@@ -318,7 +467,8 @@ const styles = StyleSheet.create({
     image: { width: "100%", height: "100%" },
     imagePlaceholder: { justifyContent: "center", alignItems: "center" },
     imageText: { marginTop: 8, color: "#666", fontSize: 14 },
-    formContainer: { marginTop: 40, paddingHorizontal: 25, gap: 14 },
+
+    formContainer: { marginTop: 34, paddingHorizontal: 25, gap: 14 },
     glassCard: {
         flexDirection: "row",
         alignItems: "center",
@@ -333,8 +483,9 @@ const styles = StyleSheet.create({
     },
     icon: { marginRight: 10 },
     input: { flex: 1, fontSize: 15, color: "#333" },
+
     saveButton: {
-        marginTop: 40,
+        marginTop: 36,
         alignSelf: "center",
         borderRadius: 50,
         overflow: "hidden",
@@ -350,8 +501,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 40,
         paddingVertical: 16,
         borderRadius: 50,
+        gap: 10,
     },
-    saveText: { color: "#fff", fontWeight: "700", fontSize: 18, marginLeft: 10 },
+    saveText: { color: "#fff", fontWeight: "800", fontSize: 18 },
+
     successOverlay: {
         position: "absolute",
         top: 0,
@@ -373,15 +526,24 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         elevation: 8,
     },
+    successText: {
+        fontSize: 18,
+        fontWeight: "700",
+        color: "#2b5938",
+        marginTop: 12,
+    },
+
     // Duplicate Modal
     overlay: {
         position: "absolute",
-        top: 0, left: 0, right: 0, bottom: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundColor: "rgba(0,0,0,0.35)",
         justifyContent: "center",
         alignItems: "center",
     },
-
     duplicateModal: {
         width: "80%",
         backgroundColor: "#ffffff",
@@ -393,7 +555,6 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         elevation: 10,
     },
-
     iconCircle: {
         width: 70,
         height: 70,
@@ -403,7 +564,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginBottom: 15,
     },
-
     dupTitle: {
         fontSize: 20,
         fontWeight: "900",
@@ -411,26 +571,21 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         textAlign: "center",
     },
-
     dupMessage: {
         fontSize: 15,
         color: "#55705e",
         textAlign: "center",
         marginBottom: 20,
     },
-
     dupButton: {
         backgroundColor: "#3e7c52",
         paddingVertical: 10,
         paddingHorizontal: 45,
         borderRadius: 12,
     },
-
     dupButtonText: {
         color: "#fff",
         fontWeight: "800",
         fontSize: 16,
     },
-
-    successText: { fontSize: 18, fontWeight: "700", color: "#2b5938", marginTop: 12 },
 });

@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Image,
@@ -14,6 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
+import { loginStyles as styles } from "./styles/login.styles";
 
 export default function LoginScreen() {
   const [username, setUsername] = useState("");
@@ -54,12 +54,11 @@ export default function LoginScreen() {
       if (response.ok) {
         await AsyncStorage.setItem("access", data.access);
         await AsyncStorage.setItem("refresh", data.refresh);
-
         router.push("/(tabs)/HomeScreen");
       } else {
         showError("Incorrect username or password");
       }
-    } catch (err) {
+    } catch {
       showError("Network error. Try again.");
     }
   };
@@ -73,32 +72,40 @@ export default function LoginScreen() {
         colors={["#d8f3dc", "#f6fff8"]}
         style={styles.container}
       >
-        {/* Logo */}
+        {/* BIGGER / CLEANER LOGO */}
         <Image
-          source={{ uri: "https://cdn-icons-png.flaticon.com/512/892/892926.png" }}
+          source={{
+            uri: "https://cdn-icons-png.flaticon.com/128/6670/6670681.png",
+          }}
           style={styles.logo}
         />
+
 
         <Text style={styles.title}>Welcome Back 🌿</Text>
         <Text style={styles.subtitle}>Log in to care for your plants</Text>
 
         {/* Animated Error Box */}
-        <Animated.View
-          style={[
-            styles.errorBox,
-            {
-              opacity: fadeAnim, transform: [{
-                translateY: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [10, 0],
-                })
-              }]
-            }
-          ]}
-        >
-          <Feather name="alert-circle" size={18} color="#fff" />
-          <Text style={styles.errorText}>{errorMsg}</Text>
-        </Animated.View>
+        {errorMsg !== "" && (
+          <Animated.View
+            style={[
+              styles.errorBox,
+              {
+                opacity: fadeAnim,
+                transform: [
+                  {
+                    translateY: fadeAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [10, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Feather name="alert-circle" size={18} color="#fff" />
+            <Text style={styles.errorText}>{errorMsg}</Text>
+          </Animated.View>
+        )}
 
         {/* Inputs */}
         <View style={styles.inputContainer}>
@@ -139,103 +146,11 @@ export default function LoginScreen() {
         {/* Sign Up */}
         <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
           <Text style={styles.link}>
-            Don’t have an account? <Text style={styles.linkHighlight}>Sign up</Text>
+            Don’t have an account?{" "}
+            <Text style={styles.linkHighlight}>Sign up</Text>
           </Text>
         </TouchableOpacity>
       </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 25,
-    alignItems: "center",
-  },
-  logo: {
-    width: 110,
-    height: 110,
-    marginBottom: 25,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#1b4332",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#4a7856",
-    marginBottom: 30,
-    fontStyle: "italic",
-  },
-
-  // ERROR BOX
-  errorBox: {
-    flexDirection: "row",
-    backgroundColor: "#e63946",
-    padding: 10,
-    paddingHorizontal: 15,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  errorText: {
-    color: "#fff",
-    marginLeft: 8,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-
-  // INPUTS
-  inputContainer: {
-    width: "100%",
-    marginBottom: 20,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffffdd",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#cfe7d6",
-  },
-  icon: { marginRight: 10 },
-  input: {
-    flex: 1,
-    height: 48,
-    fontSize: 16,
-    color: "#333",
-  },
-
-  // BUTTON
-  button: {
-    width: "100%",
-    borderRadius: 14,
-    marginBottom: 15,
-    overflow: "hidden",
-  },
-  buttonGradient: {
-    paddingVertical: 15,
-    alignItems: "center",
-    borderRadius: 14,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-
-  link: {
-    marginTop: 10,
-    fontSize: 15,
-    color: "#4a7856",
-  },
-  linkHighlight: {
-    fontWeight: "700",
-    color: "#40916c",
-  },
-});

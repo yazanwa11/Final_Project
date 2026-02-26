@@ -4,14 +4,6 @@ from django.contrib.auth.models import User
 from .models import Profile
 
 @receiver(post_save, sender=User)
-def create_profile(sender, instance, created, **kwargs):
-    if created:
-        Profile.objects.create(user=instance)
-
-@receiver(post_save, sender=User)
-def save_profile(sender, instance, **kwargs):
-    # Ensure profile always exists
-    if hasattr(instance, 'profile'):
-        instance.profile.save()
-    else:
-        Profile.objects.create(user=instance)
+def ensure_profile_exists(sender, instance, created, **kwargs):
+    # create profile for new users, and also ensure it exists for old users
+    Profile.objects.get_or_create(user=instance)
