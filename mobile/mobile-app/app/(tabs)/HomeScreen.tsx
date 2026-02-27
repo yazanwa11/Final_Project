@@ -146,7 +146,8 @@ export default function HomeScreen() {
       setUnreadCount(unread);
     } catch {
       setUnreadCount(0);
-    
+    }
+  };
 
   const loadWeather = async () => {
     try {
@@ -167,7 +168,6 @@ export default function HomeScreen() {
     } finally {
       setWeatherLoading(false);
     }
-  };}
   };
 
   // =========================================================
@@ -318,7 +318,16 @@ export default function HomeScreen() {
                     activeOpacity={0.9}
                   >
                     <Image
-              WEATHER FORECAST */}
+                      source={{ uri: user?.avatar || 'https://via.placeholder.com/150' }}
+                      style={styles.avatar}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </LinearGradient>
+          </Animated.View>
+
+          {/* WEATHER FORECAST */}
           {weather && weather.days && weather.days.length > 0 && (
             <View style={styles.weatherCard}>
               <View style={styles.weatherHeader}>
