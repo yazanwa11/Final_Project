@@ -18,8 +18,10 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from 'react-i18next';
 
 export default function AddPlantScreen() {
+    const { t } = useTranslation();
     const router = useRouter();
 
     const [name, setName] = useState("");
@@ -101,19 +103,19 @@ export default function AddPlantScreen() {
     const savePlant = async () => {
         if (saving) return;
 
-        if (!name.trim()) return Alert.alert("Please enter the plant name 🌿");
+        if (!name.trim()) return Alert.alert(t('plants.enterPlantName'));
 
         const formattedCategory = formatCategory(category);
         if (!formattedCategory)
             return Alert.alert(
-                "Category must be one of: Vegetable, Flower, Herb, Tree, Indoor"
+                t('addPlant.invalidCategory')
             );
 
         try {
             setSaving(true);
 
             const token = await AsyncStorage.getItem("access");
-            if (!token) return Alert.alert("You must be logged in!");
+            if (!token) return Alert.alert(t('auth.loginRequired'));
 
             // ✅ 1) Check duplicate before uploading
             const existingPlantsReq = await fetch("http://10.0.2.2:8000/api/plants/", {
@@ -177,11 +179,11 @@ export default function AddPlantScreen() {
             } else {
                 const err = await response.text();
                 console.log("❌ Upload error:", err);
-                Alert.alert("Failed to save plant.");
+                Alert.alert(t('addPlant.saveFailed'));
             }
         } catch (e) {
             console.error(e);
-            Alert.alert("Network Error", "Could not connect to the server.");
+            Alert.alert(t('common.error'), t('common.networkError'));
         } finally {
             setSaving(false);
         }
@@ -243,7 +245,7 @@ export default function AddPlantScreen() {
                     ) : (
                         <View style={styles.imagePlaceholder}>
                             <Feather name="camera" size={40} color="#8aa68a" />
-                            <Text style={styles.imageText}>Upload a photo</Text>
+                            <Text style={styles.imageText}>{t('addPlant.uploadPhoto')}</Text>
                         </View>
                     )}
                 </TouchableOpacity>
@@ -251,22 +253,22 @@ export default function AddPlantScreen() {
                 {/* FORM */}
                 <View style={styles.formContainer}>
                     {[
-                        { icon: "tag", placeholder: "Plant Name", value: name, set: setName },
+                        { icon: "tag", placeholder: t('addPlant.plantName'), value: name, set: setName },
                         {
                             icon: "layers",
-                            placeholder: "Category (Vegetable / Flower / Herb / Tree / Indoor)",
+                            placeholder: t('addPlant.categoryPlaceholder'),
                             value: category,
                             set: setCategory,
                         },
                         {
                             icon: "map-pin",
-                            placeholder: "Location (Garden / Balcony / Room)",
+                            placeholder: t('addPlant.locationPlaceholder'),
                             value: location,
                             set: setLocation,
                         },
                         {
                             icon: "calendar",
-                            placeholder: "Planting Date (YYYY-MM-DD)",
+                            placeholder: t('addPlant.plantingDate'),
                             value: date,
                             set: setDate,
                         },
@@ -309,12 +311,12 @@ export default function AddPlantScreen() {
                         {saving ? (
                             <>
                                 <ActivityIndicator color="#fff" />
-                                <Text style={styles.saveText}>Saving...</Text>
+                                <Text style={styles.saveText}>{t('common.saving')}</Text>
                             </>
                         ) : (
                             <>
                                 <Feather name="check-circle" size={24} color="#fff" />
-                                <Text style={styles.saveText}>Save Plant</Text>
+                                <Text style={styles.saveText}>{t('addPlant.savePlant')}</Text>
                             </>
                         )}
                     </LinearGradient>
@@ -336,7 +338,7 @@ export default function AddPlantScreen() {
                         style={styles.successCard}
                     >
                         <Feather name="check" size={42} color="#2b5938" />
-                        <Text style={styles.successText}>Plant Added Successfully!</Text>
+                        <Text style={styles.successText}>{t('addPlant.plantAdded')}</Text>
                     </LinearGradient>
                 </Animated.View>
             )}
@@ -351,17 +353,16 @@ export default function AddPlantScreen() {
                             <Feather name="alert-triangle" size={40} color="#3e7c52" />
                         </View>
 
-                        <Text style={styles.dupTitle}>This Plant Already Exists 🌱</Text>
+                        <Text style={styles.dupTitle}>{t('addPlant.plantAlreadyExists')}</Text>
                         <Text style={styles.dupMessage}>
-                            You’ve already added a plant with this name. Please choose a different
-                            one to keep your garden tidy.
+                            {t('addPlant.chooseDifferentName')}
                         </Text>
 
                         <TouchableOpacity
                             style={styles.dupButton}
                             onPress={() => setDuplicateModalVisible(false)}
                         >
-                            <Text style={styles.dupButtonText}>OK</Text>
+                            <Text style={styles.dupButtonText}>{t('common.ok')}</Text>
                         </TouchableOpacity>
                     </Animated.View>
                 </View>
@@ -450,60 +451,67 @@ const styles = StyleSheet.create({
     },
 
     imageContainer: {
-        marginTop: -34,
+        marginTop: -40,
         alignSelf: "center",
-        width: 180,
-        height: 180,
-        borderRadius: 90,
+        width: 190,
+        height: 190,
+        borderRadius: 95,
         backgroundColor: "#ffffff",
-        shadowColor: "#5f9c6c",
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-        elevation: 8,
+        shadowColor: "#2d6a4f",
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 12,
         overflow: "hidden",
         justifyContent: "center",
         alignItems: "center",
+        borderWidth: 3,
+        borderColor: "rgba(212,241,223,0.6)",
     },
     image: { width: "100%", height: "100%" },
     imagePlaceholder: { justifyContent: "center", alignItems: "center" },
-    imageText: { marginTop: 8, color: "#666", fontSize: 14 },
+    imageText: { marginTop: 8, color: "#52b788", fontSize: 15, fontWeight: "600" },
 
-    formContainer: { marginTop: 34, paddingHorizontal: 25, gap: 14 },
+    formContainer: { marginTop: 38, paddingHorizontal: 28, gap: 16 },
     glassCard: {
         flexDirection: "row",
         alignItems: "center",
-        borderRadius: 16,
-        paddingVertical: 14,
-        paddingHorizontal: 15,
-        backgroundColor: "rgba(255,255,255,0.8)",
-        shadowColor: "#3e7c52",
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
-        elevation: 4,
+        borderRadius: 18,
+        paddingVertical: 16,
+        paddingHorizontal: 18,
+        backgroundColor: "#ffffff",
+        shadowColor: "#2d6a4f",
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 5,
+        borderWidth: 1.5,
+        borderColor: "rgba(212,241,223,0.4)",
     },
-    icon: { marginRight: 10 },
-    input: { flex: 1, fontSize: 15, color: "#333" },
+    icon: { marginRight: 12 },
+    input: { flex: 1, fontSize: 16, color: "#1b4332", fontWeight: "600" },
 
     saveButton: {
-        marginTop: 36,
+        marginTop: 40,
         alignSelf: "center",
         borderRadius: 50,
         overflow: "hidden",
-        shadowColor: "#3e7c52",
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-        elevation: 10,
+        shadowColor: "#2d6a4f",
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 12,
     },
     saveGradient: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        paddingHorizontal: 40,
-        paddingVertical: 16,
+        paddingHorizontal: 48,
+        paddingVertical: 18,
         borderRadius: 50,
-        gap: 10,
+        gap: 12,
     },
-    saveText: { color: "#fff", fontWeight: "800", fontSize: 18 },
+    saveText: { color: "#fff", fontWeight: "900", fontSize: 19, letterSpacing: 0.3 },
 
     successOverlay: {
         position: "absolute",
@@ -540,52 +548,61 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.35)",
+        backgroundColor: "rgba(10,30,20,0.5)",
         justifyContent: "center",
         alignItems: "center",
     },
     duplicateModal: {
-        width: "80%",
+        width: "85%",
         backgroundColor: "#ffffff",
-        padding: 25,
-        borderRadius: 20,
+        padding: 30,
+        borderRadius: 28,
         alignItems: "center",
         shadowColor: "#000",
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-        elevation: 10,
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 15,
     },
     iconCircle: {
-        width: 70,
-        height: 70,
-        borderRadius: 35,
-        backgroundColor: "#e8f3eb",
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: "#e8f0eb",
         justifyContent: "center",
         alignItems: "center",
-        marginBottom: 15,
+        marginBottom: 18,
     },
     dupTitle: {
-        fontSize: 20,
+        fontSize: 24,
         fontWeight: "900",
-        color: "#3e7c52",
-        marginBottom: 8,
+        color: "#1b4332",
+        marginBottom: 10,
         textAlign: "center",
+        letterSpacing: -0.5,
     },
     dupMessage: {
-        fontSize: 15,
-        color: "#55705e",
+        fontSize: 16,
+        color: "#52b788",
         textAlign: "center",
-        marginBottom: 20,
+        marginBottom: 24,
+        lineHeight: 22,
     },
     dupButton: {
-        backgroundColor: "#3e7c52",
-        paddingVertical: 10,
-        paddingHorizontal: 45,
-        borderRadius: 12,
+        backgroundColor: "#2d6a4f",
+        paddingVertical: 14,
+        paddingHorizontal: 50,
+        borderRadius: 16,
+        shadowColor: "#2d6a4f",
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 6,
     },
     dupButtonText: {
         color: "#fff",
-        fontWeight: "800",
-        fontSize: 16,
+        fontWeight: "900",
+        fontSize: 17,
+        letterSpacing: 0.3,
     },
 });

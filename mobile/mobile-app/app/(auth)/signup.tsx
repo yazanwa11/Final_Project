@@ -13,9 +13,11 @@ import {
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { signupStyles as styles } from "../styles/signup.styles";
 
 export default function SignupScreen() {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +37,7 @@ export default function SignupScreen() {
 
   const handleSignup = async () => {
     if (password !== confirmPassword) {
-      alert("Passwords do not match!");
+      alert(t("auth.passwordsNotMatch"));
       return;
     }
 
@@ -53,10 +55,10 @@ export default function SignupScreen() {
       if (response.ok) {
         showSuccess();
       } else {
-        alert("Signup failed");
+        alert(t("auth.signupFailed"));
       }
     } catch {
-      alert("Something went wrong!");
+      alert(t("auth.somethingWentWrong"));
     }
   };
 
@@ -76,8 +78,8 @@ export default function SignupScreen() {
           style={styles.logo}
         />
 
-        <Text style={styles.title}>Create Account 🌱</Text>
-        <Text style={styles.subtitle}>Sign up to start your journey</Text>
+        <Text style={styles.title}>{t("auth.createAccount")} 🌱</Text>
+        <Text style={styles.subtitle}>{t("auth.signupSubtitle")}</Text>
 
         {/* INPUTS */}
         <View style={styles.inputContainer}>
@@ -85,7 +87,7 @@ export default function SignupScreen() {
             <Feather name="user" size={18} color="#4a7856" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Username"
+              placeholder={t("auth.username")}
               placeholderTextColor="#88a096"
               value={name}
               onChangeText={setName}
@@ -96,7 +98,7 @@ export default function SignupScreen() {
             <Feather name="mail" size={18} color="#4a7856" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Email Address"
+              placeholder={t("auth.emailAddress")}
               placeholderTextColor="#88a096"
               value={email}
               onChangeText={setEmail}
@@ -107,7 +109,7 @@ export default function SignupScreen() {
             <Feather name="lock" size={18} color="#4a7856" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Password"
+              placeholder={t("auth.password")}
               placeholderTextColor="#88a096"
               secureTextEntry
               value={password}
@@ -119,7 +121,7 @@ export default function SignupScreen() {
             <Feather name="lock" size={18} color="#4a7856" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Confirm Password"
+              placeholder={t("auth.confirmPassword")}
               placeholderTextColor="#88a096"
               secureTextEntry
               value={confirmPassword}
@@ -134,15 +136,15 @@ export default function SignupScreen() {
             colors={["#74c69d", "#52b788"]}
             style={styles.buttonGradient}
           >
-            <Text style={styles.buttonText}>Sign Up</Text>
+            <Text style={styles.buttonText}>{t("auth.signup")}</Text>
           </LinearGradient>
         </TouchableOpacity>
 
         {/* LOGIN LINK */}
         <TouchableOpacity onPress={() => router.push("/")}>
           <Text style={styles.link}>
-            Already have an account?{" "}
-            <Text style={styles.linkHighlight}>Log in</Text>
+            {t("auth.alreadyHaveAccount")}{" "}
+            <Text style={styles.linkHighlight}>{t("auth.logIn")}</Text>
           </Text>
         </TouchableOpacity>
 
@@ -156,9 +158,9 @@ export default function SignupScreen() {
               ]}
             >
               <Feather name="check-circle" size={60} color="#4CAF50" />
-              <Text style={styles.modalTitle}>Welcome to GreenBuddy 🌿</Text>
+              <Text style={styles.modalTitle}>{t("auth.welcomeToGreenBuddy")} 🌿</Text>
               <Text style={styles.modalMessage}>
-                Your account has been created successfully.
+                {t("auth.accountCreatedSuccess")}
               </Text>
 
               <TouchableOpacity
@@ -168,7 +170,7 @@ export default function SignupScreen() {
                   router.push("/");
                 }}
               >
-                <Text style={styles.modalButtonText}>Continue</Text>
+                <Text style={styles.modalButtonText}>{t("auth.continue")}</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>

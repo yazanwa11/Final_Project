@@ -1,8 +1,17 @@
 from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
-from .models import Plant,Notification,ExpertPost,ExpertInquiry
-from .serializers import UserSerializer, PlantSerializer,NotificationSerializer,ExpertPostSerializer,ExpertInquirySerializer
+from .models import Plant, Notification, ExpertPost, ExpertInquiry, Prediction, DiseaseProfile, PlantHealthSnapshot
+from .serializers import (
+    UserSerializer,
+    PlantSerializer,
+    NotificationSerializer,
+    ExpertPostSerializer,
+    ExpertInquirySerializer,
+    PredictionCreateSerializer,
+    PredictionSerializer,
+    PlantHealthSnapshotSerializer,
+)
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -13,13 +22,17 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
+from datetime import timedelta
 import requests
+import re
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .permissions import IsExpert
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from .inference import InferenceService, DEFAULT_DISEASES
+from .health_scoring import compute_and_store_plant_health
 
 
 
@@ -213,32 +226,59 @@ def to_int(v):
         return None
 
 
+def local_plant_suggestions(query: str):
+    base = [
+        {"id": 9001, "name": "Basil", "category": "Herb", "watering_interval": 2, "sunlight_interval": 1, "image": None},
+        {"id": 9002, "name": "Mint", "category": "Herb", "watering_interval": 3, "sunlight_interval": 2, "image": None},
+        {"id": 9003, "name": "Rosemary", "category": "Herb", "watering_interval": 4, "sunlight_interval": 1, "image": None},
+        {"id": 9004, "name": "Tomato", "category": "Vegetable", "watering_interval": 2, "sunlight_interval": 1, "image": None},
+        {"id": 9005, "name": "Cucumber", "category": "Vegetable", "watering_interval": 2, "sunlight_interval": 1, "image": None},
+        {"id": 9006, "name": "Lavender", "category": "Flower", "watering_interval": 5, "sunlight_interval": 1, "image": None},
+        {"id": 9007, "name": "Snake Plant", "category": "Indoor", "watering_interval": 10, "sunlight_interval": 3, "image": None},
+        {"id": 9008, "name": "Peace Lily", "category": "Indoor", "watering_interval": 5, "sunlight_interval": 2, "image": None},
+    ]
+
+    q = (query or "").strip().lower()
+    if not q:
+        return base
+    return [item for item in base if q in item["name"].lower() or q in item["category"].lower()]
+
+
+def parse_days_from_text(value: str | None, default_value: int = 4) -> int:
+    if not value:
+        return default_value
+    nums = re.findall(r"\d+", str(value))
+    if not nums:
+        return default_value
+    values = [int(num) for num in nums]
+    avg = round(sum(values) / len(values))
+    return max(1, min(14, avg))
+
+
+def is_provider_placeholder(value: str | None) -> bool:
+    if not value:
+        return False
+    text = str(value).lower()
+    return "upgrade plans" in text or "subscription-api-pricing" in text
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def plant_suggestions(request):
     query = request.GET.get("q") or "plant"
-    token = getattr(settings, "TREFLE_API_TOKEN", None)
+    token = getattr(settings, "PERENUAL_API_KEY", None)
 
     if not token:
-        return Response(
-            {"detail": "TREFLE_API_TOKEN is missing in settings.py / .env"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        return Response(local_plant_suggestions(query))
 
-    search_url = "https://trefle.io/api/v1/plants/search"
+    search_url = "https://perenual.com/api/species-list"
     try:
-        sr = requests.get(search_url, params={"token": token, "q": query}, timeout=10)
+        sr = requests.get(search_url, params={"key": token, "q": query, "page": 1}, timeout=12)
         if sr.status_code != 200:
-            return Response(
-                {"detail": "Trefle search failed", "status": sr.status_code, "body": sr.text},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+            return Response(local_plant_suggestions(query))
         search_payload = sr.json()
-    except Exception as e:
-        return Response(
-            {"detail": "Trefle search exception", "error": str(e)},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
+    except Exception:
+        return Response(local_plant_suggestions(query))
 
     items = (search_payload.get("data") or [])[:10]
 
@@ -248,39 +288,54 @@ def plant_suggestions(request):
         if not plant_id:
             continue
 
-        detail_url = f"https://trefle.io/api/v1/plants/{plant_id}"
+        detail_url = f"https://perenual.com/api/species/details/{plant_id}"
         try:
-            dr = requests.get(detail_url, params={"token": token}, timeout=10)
+            dr = requests.get(detail_url, params={"key": token}, timeout=12)
             if dr.status_code != 200:
                 continue
             detail_payload = dr.json()
         except Exception:
             continue
 
-        d = (detail_payload.get("data") or {})
+        d = detail_payload if isinstance(detail_payload, dict) else {}
+        name = d.get("common_name") or p.get("common_name") or (p.get("scientific_name") or ["Unknown"])[0]
+        default_image = d.get("default_image") or p.get("default_image") or {}
+        image_url = default_image.get("original_url") or default_image.get("regular_url")
 
-        # ✅ FIX: growth is usually in main_species.growth
-        main_species = d.get("main_species") or {}
-        growth = main_species.get("growth") or d.get("growth") or {}
+        water_text = None
+        benchmark = d.get("watering_general_benchmark") or {}
+        if isinstance(benchmark, dict):
+            water_text = benchmark.get("value")
+        if not water_text:
+            water_text = d.get("watering")
+        if is_provider_placeholder(water_text):
+            water_text = None
 
-        name = d.get("common_name") or d.get("scientific_name") or d.get("slug") or "Unknown"
-        image_url = d.get("image_url") or p.get("image_url")
+        sunlight_value = d.get("sunlight")
+        if isinstance(sunlight_value, list):
+            sunlight_text = " ".join(str(item) for item in sunlight_value)
+        else:
+            sunlight_text = str(sunlight_value or "")
+        if is_provider_placeholder(sunlight_text):
+            sunlight_text = ""
 
-        light = to_int(growth.get("light"))
-        humidity = to_int(growth.get("atmospheric_humidity"))
+        watering_interval = parse_days_from_text(water_text, default_value=4)
+        sunlight_interval = 1 if "full" in sunlight_text.lower() else 2
+        category = p.get("cycle") or "General"
+        if is_provider_placeholder(category):
+            category = "General"
 
         results.append({
             "id": plant_id,
             "name": name,
-            "category": "General",
-            "watering_interval": watering_days_from_humidity(humidity),
-            "sunlight_interval": sunlight_days_from_light(light),
+            "category": category,
+            "watering_interval": watering_interval,
+            "sunlight_interval": sunlight_interval,
             "image": image_url,
-
-            # 🔎 TEMP DEBUG (optional): uncomment to verify values differ
-            # "api_light": light,
-            # "api_humidity": humidity,
         })
+
+    if not results:
+        return Response(local_plant_suggestions(query))
 
     return Response(results)
 
@@ -340,6 +395,126 @@ def mark_notification_read(request, notif_id):
 def list_expert_posts(request):
     posts = ExpertPost.objects.all()
     return Response(ExpertPostSerializer(posts, many=True, context={"request": request}).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def plant_health_score(request, plant_id: int):
+    try:
+        plant = Plant.objects.get(id=plant_id, user=request.user)
+    except Plant.DoesNotExist:
+        return Response({"detail": "Plant not found"}, status=404)
+
+    snapshot = plant.health_snapshots.order_by("-created_at").first()
+    if snapshot is None or request.GET.get("recompute") == "1":
+        snapshot = compute_and_store_plant_health(plant, window_days=30)
+
+    return Response(PlantHealthSnapshotSerializer(snapshot).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def plant_health_history(request, plant_id: int):
+    try:
+        plant = Plant.objects.get(id=plant_id, user=request.user)
+    except Plant.DoesNotExist:
+        return Response({"detail": "Plant not found"}, status=404)
+
+    days = int(request.GET.get("days", 90))
+    since = timezone.now() - timedelta(days=days)
+    snapshots = PlantHealthSnapshot.objects.filter(plant=plant, created_at__gte=since).order_by("created_at")
+    return Response(PlantHealthSnapshotSerializer(snapshots, many=True).data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def recompute_plant_health(request, plant_id: int):
+    try:
+        plant = Plant.objects.get(id=plant_id, user=request.user)
+    except Plant.DoesNotExist:
+        return Response({"detail": "Plant not found"}, status=404)
+
+    snapshot = compute_and_store_plant_health(plant, window_days=30)
+    return Response(PlantHealthSnapshotSerializer(snapshot).data, status=201)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_prediction(request):
+    serializer = PredictionCreateSerializer(data=request.data, context={"request": request})
+    serializer.is_valid(raise_exception=True)
+    prediction = serializer.save(status="pending")
+    language = request.data.get("language", "he")  # Default to Hebrew
+
+    try:
+        result = InferenceService.predict(prediction.image.path, language=language)
+        disease = DiseaseProfile.objects.filter(code=result["disease_code"]).first()
+        if disease is None:
+            defaults = DEFAULT_DISEASES.get(result["disease_code"], {})
+            disease = DiseaseProfile.objects.create(
+                code=result["disease_code"],
+                display_name=result["disease_name"],
+                treatment_recommendation=defaults.get("treatment", result["treatment_recommendation"]),
+                urgency_level=defaults.get("urgency", result["urgency_level"]),
+                is_active=True,
+            )
+
+        prediction.status = "done"
+        prediction.disease = disease
+        prediction.confidence_score = result["confidence_score"]
+        prediction.treatment_recommendation = result["treatment_recommendation"]
+        prediction.urgency_level = result["urgency_level"]
+        prediction.model_version = result["model_version"]
+        prediction.raw_topk = result["raw_topk"]
+        prediction.completed_at = timezone.now()
+        prediction.failure_reason = ""
+        prediction.save(
+            update_fields=[
+                "status",
+                "disease",
+                "confidence_score",
+                "treatment_recommendation",
+                "urgency_level",
+                "model_version",
+                "raw_topk",
+                "completed_at",
+                "failure_reason",
+            ]
+        )
+    except Exception as exc:
+        prediction.status = "failed"
+        prediction.failure_reason = str(exc)
+        prediction.completed_at = timezone.now()
+        prediction.save(update_fields=["status", "failure_reason", "completed_at"])
+
+    return Response(
+        PredictionSerializer(prediction, context={"request": request}).data,
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def prediction_detail(request, prediction_id):
+    try:
+        prediction = Prediction.objects.get(id=prediction_id, user=request.user)
+    except Prediction.DoesNotExist:
+        return Response({"detail": "Not found"}, status=404)
+
+    return Response(PredictionSerializer(prediction, context={"request": request}).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def prediction_list(request):
+    queryset = Prediction.objects.filter(user=request.user)
+    plant_id = request.GET.get("plant_id")
+
+    if plant_id:
+        queryset = queryset.filter(plant_id=plant_id)
+
+    queryset = queryset.order_by("-created_at")[:50]
+    return Response(PredictionSerializer(queryset, many=True, context={"request": request}).data)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsExpert])

@@ -18,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTranslation } from 'react-i18next';
 
 type ExpertPost = {
   id: number;
@@ -29,6 +30,7 @@ type ExpertPost = {
 };
 
 export default function ExploreScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
@@ -70,10 +72,10 @@ export default function ExploreScreen() {
   const isExpert = user?.role === "expert";
 
   const headerSubtitle = useMemo(() => {
-    if (!user) return "Tips, articles, and expert support";
-    if (isExpert) return "Publish posts and help users with questions";
-    return "Search tips and ask an expert when you need help";
-  }, [user, isExpert]);
+    if (!user) return t('explore.subtitleGuest');
+    if (isExpert) return t('explore.subtitleExpert');
+    return t('explore.subtitleUser');
+  }, [user, isExpert, t]);
 
   const showToast = (title: string, body: string) => {
     setToastTitle(title);
@@ -162,13 +164,13 @@ export default function ExploreScreen() {
       });
 
       const raw = await res.text();
-      if (!res.ok) throw new Error(`Explore feed failed: ${res.status} ${raw}`);
+      if (!res.ok) throw new Error(t('explore.feedLoadError', { status: res.status }));
 
       const data = JSON.parse(raw);
       setPosts(Array.isArray(data) ? data : []);
     } catch (e: any) {
       setPosts([]);
-      setError(e?.message || "Failed to load Explore");
+      setError(e?.message || t('explore.loadFailed'));
     }
   };
 
@@ -250,7 +252,7 @@ export default function ExploreScreen() {
 
       const q = askQuestion.trim();
       if (!q) {
-        showToast("Missing info", "Please write your question.");
+        showToast(t('explore.missingInfo'), t('explore.pleaseWriteQuestion'));
         return;
       }
 
@@ -266,9 +268,9 @@ export default function ExploreScreen() {
       setAskOpen(false);
       setAskPlant("");
       setAskQuestion("");
-      showToast("Sent", "Your question was sent to experts.");
+      showToast(t('explore.sent'), t('explore.questionSentToExperts'));
     } catch (e: any) {
-      showToast("Error", e?.message || "Failed to send question");
+      showToast(t('common.error'), e?.message || t('explore.failedToSendQuestion'));
     } finally {
       setAsking(false);
     }
@@ -278,18 +280,18 @@ export default function ExploreScreen() {
     try {
       setPublishing(true);
 
-      const t = postTitle.trim();
-      const c = postContent.trim();
+      const title = postTitle.trim();
+      const content = postContent.trim();
 
-      if (!t || !c) {
-        showToast("Missing info", "Please add a title and content.");
+      if (!title || !content) {
+        showToast(t('explore.missingInfo'), t('explore.pleaseAddTitleContent'));
         return;
       }
 
       const res = await fetchWithAuth("http://10.0.2.2:8000/api/explore/posts/create/", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ title: t, content: c, image_url: postImageUrl.trim() || null }),
+        body: JSON.stringify({ title: title, content: content, image_url: postImageUrl.trim() || null }),
       });
 
       const raw = await res.text();
@@ -299,12 +301,12 @@ export default function ExploreScreen() {
       setPostTitle("");
       setPostContent("");
       setPostImageUrl("");
-      showToast("Published", "Your post is live on Explore.");
+      showToast(t('explore.published'), t('explore.postIsLive'));
 
       const q = query.trim();
       await loadPosts(q ? q : undefined);
     } catch (e: any) {
-      showToast("Error", e?.message || "Failed to publish");
+      showToast(t('common.error'), e?.message || t('explore.failedToPublish'));
     } finally {
       setPublishing(false);
     }
@@ -319,7 +321,7 @@ export default function ExploreScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#2d6a4f" />
-        <Text style={styles.loadingText}>Loading Explore...</Text>
+        <Text style={styles.loadingText}>{t('explore.loadingExplore')}</Text>
       </View>
     );
   }
@@ -331,11 +333,16 @@ export default function ExploreScreen() {
           {/* Header */}
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
-              <Text style={styles.title}>Explore</Text>
+              <Text style={styles.title}>{t('explore.title')}</Text>
               <Text style={styles.subtitle}>{headerSubtitle}</Text>
             </View>
 
             <View style={styles.headerActions}>
+              <Pressable onPress={() => router.push("/AssistantScreen" as any)} style={styles.inboxBtn}>
+                <Feather name="message-circle" size={16} color="#2e4d35" />
+                <Text style={styles.inboxText}>{t('explore.ai')}</Text>
+              </Pressable>
+
               {/* Bell for everyone */}
               <Pressable onPress={() => router.push("/NotificationsScreen" as any)} style={styles.bellBtn}>
                 <Feather name="bell" size={18} color="#2e4d35" />
@@ -350,7 +357,7 @@ export default function ExploreScreen() {
               {!isExpert && (
                 <Pressable onPress={() => setAskOpen(true)} style={styles.primaryBtn}>
                   <Feather name="help-circle" size={16} color="#fff" />
-                  <Text style={styles.primaryText}>Ask</Text>
+                  <Text style={styles.primaryText}>{t('explore.ask')}</Text>
                 </Pressable>
               )}
 
@@ -358,7 +365,7 @@ export default function ExploreScreen() {
               {isExpert && (
                 <Pressable onPress={() => router.push("/ExpertInboxScreen" as any)} style={styles.inboxBtn}>
                   <Feather name="inbox" size={16} color="#2e4d35" />
-                  <Text style={styles.inboxText}>Inbox</Text>
+                  <Text style={styles.inboxText}>{t('explore.inbox')}</Text>
                 </Pressable>
               )}
 
@@ -377,7 +384,7 @@ export default function ExploreScreen() {
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search plants or topics..."
+              placeholder={t('explore.searchPlaceholder')}
               placeholderTextColor="#7aa68a"
               style={styles.searchInput}
               autoCapitalize="none"
@@ -398,11 +405,11 @@ export default function ExploreScreen() {
           {error ? (
             <View style={styles.empty}>
               <Feather name="alert-triangle" size={22} color="#b91c1c" />
-              <Text style={styles.emptyTitle}>Couldn’t load Explore</Text>
+              <Text style={styles.emptyTitle}>{t('explore.couldntLoad')}</Text>
               <Text style={styles.emptyText}>{error}</Text>
 
               <Pressable style={styles.retryBtn} onPress={() => loadPosts(query.trim() || undefined)}>
-                <Text style={styles.retryText}>Try again</Text>
+                <Text style={styles.retryText}>{t('explore.tryAgain')}</Text>
               </Pressable>
             </View>
           ) : (
@@ -416,7 +423,7 @@ export default function ExploreScreen() {
               ListHeaderComponent={
                 query.trim().length > 0 && suggestions.length > 0 ? (
                   <View style={{ marginBottom: 10 }}>
-                    <Text style={styles.sectionTitle}>Plant matches</Text>
+                    <Text style={styles.sectionTitle}>{t('explore.plantMatches')}</Text>
 
                     <ScrollView
                       horizontal
@@ -425,7 +432,7 @@ export default function ExploreScreen() {
                     >
                       {suggestions.slice(0, 10).map((item: any, idx: number) => {
                         const img = item.image || item.image_url || item.imageUrl;
-                        const name = item.name || item.common_name || "Plant";
+                        const name = item.name || item.common_name || t('explore.plant');
 
                         return (
                           <View key={String(item?.id ?? item?.name ?? idx)} style={styles.suggestCard}>
@@ -443,9 +450,9 @@ export default function ExploreScreen() {
               ListEmptyComponent={
                 <View style={styles.empty}>
                   <Feather name="compass" size={22} color="#3e7c52" />
-                  <Text style={styles.emptyTitle}>No posts yet</Text>
+                  <Text style={styles.emptyTitle}>{t('explore.noPostsYet')}</Text>
                   <Text style={styles.emptyText}>
-                    {isExpert ? "Publish your first post to start helping!" : "Check back soon for expert tips."}
+                    {isExpert ? t('explore.publishFirstPost') : t('explore.checkBackSoon')}
                   </Text>
                 </View>
               }
@@ -459,7 +466,7 @@ export default function ExploreScreen() {
                       {item.title}
                     </Text>
                     <Text style={styles.postMeta} numberOfLines={1}>
-                      {item.author_username ? `By ${item.author_username}` : "Expert"}{" "}
+                      {item.author_username ? `${t('explore.by')} ${item.author_username}` : t('explore.expert')}{" "}
                       {item.created_at ? `  •  ${new Date(item.created_at).toLocaleDateString()}` : ""}
                     </Text>
                     <Text style={styles.postSnippet} numberOfLines={3}>
@@ -467,7 +474,7 @@ export default function ExploreScreen() {
                     </Text>
 
                     <View style={styles.readRow}>
-                      <Text style={styles.readText}>Read</Text>
+                      <Text style={styles.readText}>{t('explore.read')}</Text>
                       <Feather name="chevron-right" size={16} color="#2e4d35" />
                     </View>
                   </View>
@@ -482,26 +489,26 @@ export default function ExploreScreen() {
               <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
                 <View style={styles.modalCard}>
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Ask an Expert</Text>
+                    <Text style={styles.modalTitle}>{t('explore.askAnExpert')}</Text>
                     <Pressable onPress={() => setAskOpen(false)} style={styles.iconBtn}>
                       <Feather name="x" size={18} color="#2e4d35" />
                     </Pressable>
                   </View>
 
-                  <Text style={styles.modalHint}>Optional: add a plant name</Text>
+                  <Text style={styles.modalHint}>{t('explore.optionalPlantName')}</Text>
                   <TextInput
                     value={askPlant}
                     onChangeText={setAskPlant}
-                    placeholder="Plant name (optional)"
+                    placeholder={t('explore.plantNameOptional')}
                     placeholderTextColor="#7aa68a"
                     style={styles.input}
                   />
 
-                  <Text style={[styles.modalHint, { marginTop: 10 }]}>Your question</Text>
+                  <Text style={[styles.modalHint, { marginTop: 10 }]}>{t('explore.yourQuestion')}</Text>
                   <TextInput
                     value={askQuestion}
                     onChangeText={setAskQuestion}
-                    placeholder="Write your question..."
+                    placeholder={t('explore.writeQuestion')}
                     placeholderTextColor="#7aa68a"
                     style={[styles.input, { height: 110, textAlignVertical: "top" }]}
                     multiline
@@ -509,11 +516,11 @@ export default function ExploreScreen() {
 
                   <View style={styles.modalActions}>
                     <Pressable onPress={() => setAskOpen(false)} style={styles.secondaryBtn}>
-                      <Text style={styles.secondaryText}>Cancel</Text>
+                      <Text style={styles.secondaryText}>{t('common.cancel')}</Text>
                     </Pressable>
 
                     <Pressable onPress={submitAsk} style={styles.primaryBtnWide} disabled={asking}>
-                      {asking ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Send</Text>}
+                      {asking ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{t('explore.send')}</Text>}
                     </Pressable>
                   </View>
                 </View>
@@ -527,36 +534,36 @@ export default function ExploreScreen() {
               <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
                 <View style={styles.modalCard}>
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Publish Post</Text>
+                    <Text style={styles.modalTitle}>{t('explore.publishPost')}</Text>
                     <Pressable onPress={() => setCreateOpen(false)} style={styles.iconBtn}>
                       <Feather name="x" size={18} color="#2e4d35" />
                     </Pressable>
                   </View>
 
-                  <Text style={styles.modalHint}>Title</Text>
+                  <Text style={styles.modalHint}>{t('explore.titleLabel')}</Text>
                   <TextInput
                     value={postTitle}
                     onChangeText={setPostTitle}
-                    placeholder="Short title..."
+                    placeholder={t('explore.shortTitle')}
                     placeholderTextColor="#7aa68a"
                     style={styles.input}
                   />
 
-                  <Text style={[styles.modalHint, { marginTop: 10 }]}>Content</Text>
+                  <Text style={[styles.modalHint, { marginTop: 10 }]}>{t('explore.contentLabel')}</Text>
                   <TextInput
                     value={postContent}
                     onChangeText={setPostContent}
-                    placeholder="Write your post..."
+                    placeholder={t('explore.writePost')}
                     placeholderTextColor="#7aa68a"
                     style={[styles.input, { height: 120, textAlignVertical: "top" }]}
                     multiline
                   />
 
-                  <Text style={[styles.modalHint, { marginTop: 10 }]}>Image URL (optional)</Text>
+                  <Text style={[styles.modalHint, { marginTop: 10 }]}>{t('explore.imageUrlOptional')}</Text>
                   <TextInput
                     value={postImageUrl}
                     onChangeText={setPostImageUrl}
-                    placeholder="https://..."
+                    placeholder={t('explore.imageUrlPlaceholder')}
                     placeholderTextColor="#7aa68a"
                     style={styles.input}
                     autoCapitalize="none"
@@ -564,11 +571,11 @@ export default function ExploreScreen() {
 
                   <View style={styles.modalActions}>
                     <Pressable onPress={() => setCreateOpen(false)} style={styles.secondaryBtn}>
-                      <Text style={styles.secondaryText}>Cancel</Text>
+                      <Text style={styles.secondaryText}>{t('common.cancel')}</Text>
                     </Pressable>
 
                     <Pressable onPress={submitPost} style={styles.primaryBtnWide} disabled={publishing}>
-                      {publishing ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Publish</Text>}
+                      {publishing ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{t('explore.publish')}</Text>}
                     </Pressable>
                   </View>
                 </View>
@@ -581,7 +588,7 @@ export default function ExploreScreen() {
             <View style={styles.modalOverlay}>
               <View style={[styles.modalCard, { maxHeight: "80%" }]}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>{activePost?.title || "Post"}</Text>
+                  <Text style={styles.modalTitle}>{activePost?.title || t('explore.post')}</Text>
                   <Pressable onPress={() => setPostOpen(false)} style={styles.iconBtn}>
                     <Feather name="x" size={18} color="#2e4d35" />
                   </Pressable>
@@ -590,7 +597,7 @@ export default function ExploreScreen() {
                 {activePost?.image_url ? <Image source={{ uri: activePost.image_url }} style={styles.postModalImage} /> : null}
 
                 <Text style={styles.postModalMeta}>
-                  {activePost?.author_username ? `By ${activePost.author_username}` : "Expert"}
+                  {activePost?.author_username ? `${t('explore.by')} ${activePost.author_username}` : t('explore.expert')}
                 </Text>
 
                 <Text style={styles.postModalBody}>{activePost?.content || ""}</Text>
@@ -620,79 +627,94 @@ export default function ExploreScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  container: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
+  container: { flex: 1, paddingHorizontal: 20, paddingTop: 12 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  loadingText: { marginTop: 10, color: "#3e7c52", fontWeight: "800" },
+  loadingText: { marginTop: 12, color: "#2d6a4f", fontSize: 16, fontWeight: "800" },
 
   headerRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 14,
     paddingHorizontal: 2,
-    paddingTop: 6,
+    paddingTop: 8,
   },
   headerLeft: { flex: 1, paddingRight: 12 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 0 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 0 },
 
-  title: { fontSize: 24, fontWeight: "900", color: "#2e4d35" },
-  subtitle: { marginTop: 4, fontSize: 13.5, color: "#4b9560" },
+  title: { fontSize: 28, fontWeight: "900", color: "#1b4332", letterSpacing: -0.5 },
+  subtitle: { marginTop: 6, fontSize: 15, color: "#52b788", fontWeight: "600" },
 
   // Search
   searchBar: {
-    marginTop: 14,
+    marginTop: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.18)",
+    gap: 12,
+    paddingHorizontal: 16,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: "#ffffff",
+    shadowColor: "#2d6a4f",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+    borderWidth: 1.5,
+    borderColor: "rgba(212,241,223,0.4)",
   },
   searchInput: {
     flex: 1,
     color: "#1b4332",
-    fontWeight: "800",
+    fontSize: 16,
+    fontWeight: "600",
   },
   clearBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(216,243,220,0.35)",
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.14)",
+    backgroundColor: "rgba(82,183,136,0.15)",
   },
 
   sectionTitle: {
-    marginTop: 12,
-    fontSize: 13.5,
+    marginTop: 16,
+    fontSize: 15,
     fontWeight: "900",
-    color: "#2e4d35",
+    color: "#1b4332",
+    letterSpacing: -0.2,
   },
   suggestCard: {
-    width: 120,
-    borderRadius: 16,
-    padding: 10,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    width: 130,
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: "#ffffff",
+    shadowColor: "#2d6a4f",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
     borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.12)",
+    borderColor: "rgba(212,241,223,0.3)",
   },
-  suggestImg: { width: "100%", height: 70, borderRadius: 14, marginBottom: 8 },
-  suggestName: { fontWeight: "900", color: "#2e4d35", fontSize: 12.5 },
+  suggestImg: { width: "100%", height: 75, borderRadius: 14, marginBottom: 10 },
+  suggestName: { fontWeight: "800", color: "#1b4332", fontSize: 14 },
 
   bellBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.18)",
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#ffffff",
+    shadowColor: "#2d6a4f",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(212,241,223,0.4)",
   },
   badge: {
     position: "absolute",
@@ -700,163 +722,202 @@ const styles = StyleSheet.create({
     right: -6,
     backgroundColor: "#ef4444",
     borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 2.5,
+    borderColor: "#ffffff",
+    shadowColor: "#ef4444",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   badgeText: { color: "#fff", fontWeight: "900", fontSize: 11 },
 
   primaryBtn: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+    height: 48,
+    paddingHorizontal: 18,
+    borderRadius: 16,
     backgroundColor: "#2d6a4f",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+    shadowColor: "#2d6a4f",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  primaryText: { color: "#fff", fontWeight: "900" },
+  primaryText: { color: "#fff", fontWeight: "900", fontSize: 16 },
 
   inboxBtn: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.18)",
+    height: 48,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    backgroundColor: "#ffffff",
+    shadowColor: "#2d6a4f",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+    borderWidth: 1.5,
+    borderColor: "rgba(212,241,223,0.4)",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
-  inboxText: { color: "#2e4d35", fontWeight: "900" },
+  inboxText: { color: "#1b4332", fontWeight: "900", fontSize: 16 },
 
   publishFab: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: "#2d6a4f",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#2d6a4f",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
+  },
+
+  postCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: "#2d6a4f",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: "rgba(212,241,223,0.3)",
+    flexDirection: "row",
+    gap: 14,
+    marginBottom: 14,
+  },
+  postImage: { width: 85, height: 85, borderRadius: 18 },
+
+  postTitle: { fontSize: 17, fontWeight: "900", color: "#1b4332", letterSpacing: -0.2 },
+  postMeta: { marginTop: 5, fontSize: 13, color: "#52b788", fontWeight: "600" },
+  postSnippet: { marginTop: 10, fontSize: 14, color: "#2d6a4f", lineHeight: 20, fontWeight: "500" },
+
+  readRow: { marginTop: 12, flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start" },
+  readText: { color: "#1b4332", fontWeight: "800", fontSize: 15 },
+
+  empty: {
+    paddingTop: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  emptyTitle: { marginTop: 12, fontSize: 18, fontWeight: "900", color: "#1b4332", textAlign: "center" },
+  emptyText: { marginTop: 10, fontSize: 15, color: "#52b788", textAlign: "center", lineHeight: 22 },
+
+  retryBtn: {
+    marginTop: 18,
+    backgroundColor: "#2d6a4f",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+    shadowColor: "#2d6a4f",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  retryText: { color: "#fff", fontWeight: "900", fontSize: 16 },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(10,30,20,0.5)",
+    padding: 20,
+    justifyContent: "center",
+  },
+  modalCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 28,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 15,
+  },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  modalTitle: { fontSize: 22, fontWeight: "900", color: "#1b4332", letterSpacing: -0.5 },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(232,240,235,0.6)",
+  },
+  modalHint: { fontSize: 14, color: "#52b788", fontWeight: "700", marginBottom: 8 },
+
+  input: {
+    marginTop: 12,
+    backgroundColor: "#f8faf9",
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: "rgba(45,106,79,0.2)",
+    color: "#1b4332",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  modalActions: { marginTop: 18, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12 },
+  secondaryBtn: {
+    height: 48,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    backgroundColor: "#f8faf9",
+    borderWidth: 1.5,
+    borderColor: "rgba(212,241,223,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryText: { color: "#1b4332", fontWeight: "900", fontSize: 16 },
+
+  primaryBtnWide: {
+    height: 48,
+    paddingHorizontal: 24,
     borderRadius: 16,
     backgroundColor: "#2d6a4f",
     alignItems: "center",
     justifyContent: "center",
+    minWidth: 120,
+    shadowColor: "#2d6a4f",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
 
-  postCard: {
-    backgroundColor: "rgba(255,255,255,0.92)",
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.14)",
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
-  },
-  postImage: { width: 78, height: 78, borderRadius: 16 },
-
-  postTitle: { fontSize: 16, fontWeight: "900", color: "#1b4332" },
-  postMeta: { marginTop: 4, fontSize: 12.5, color: "#4b9560", fontWeight: "700" },
-  postSnippet: { marginTop: 8, fontSize: 13.2, color: "#1f2937", lineHeight: 18 },
-
-  readRow: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
-  readText: { color: "#2e4d35", fontWeight: "900" },
-
-  empty: {
-    paddingTop: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 18,
-  },
-  emptyTitle: { marginTop: 10, fontSize: 16, fontWeight: "900", color: "#2e4d35", textAlign: "center" },
-  emptyText: { marginTop: 8, fontSize: 13.2, color: "#4b5563", textAlign: "center", lineHeight: 18 },
-
-  retryBtn: {
-    marginTop: 14,
-    backgroundColor: "#2d6a4f",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-  },
-  retryText: { color: "#fff", fontWeight: "900" },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    padding: 18,
-    justifyContent: "center",
-  },
-  modalCard: {
-    backgroundColor: "rgba(255,255,255,0.98)",
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.16)",
-  },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  modalTitle: { fontSize: 16, fontWeight: "900", color: "#2e4d35" },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(216,243,220,0.35)",
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.14)",
-  },
-  modalHint: { fontSize: 12.5, color: "#4b9560", fontWeight: "800" },
-
-  input: {
-    marginTop: 8,
-    backgroundColor: "rgba(248,250,249,1)",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.16)",
-    color: "#1b4332",
-    fontWeight: "800",
-  },
-
-  modalActions: { marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10 },
-  secondaryBtn: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryText: { color: "#2e4d35", fontWeight: "900" },
-
-  primaryBtnWide: {
-    height: 44,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-    backgroundColor: "#2d6a4f",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 110,
-  },
-
-  postModalImage: { width: "100%", height: 160, borderRadius: 16, marginTop: 6, marginBottom: 10 },
-  postModalMeta: { fontSize: 12.5, color: "#4b9560", fontWeight: "800", marginBottom: 10 },
-  postModalBody: { fontSize: 13.8, color: "#111827", lineHeight: 20, fontWeight: "700" },
+  postModalImage: { width: "100%", height: 180, borderRadius: 18, marginTop: 8, marginBottom: 12 },
+  postModalMeta: { fontSize: 14, color: "#52b788", fontWeight: "700", marginBottom: 12 },
+  postModalBody: { fontSize: 16, color: "#1b4332", lineHeight: 24, fontWeight: "500" },
 
   toastOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    padding: 18,
+    backgroundColor: "rgba(10,30,20,0.4)",
+    padding: 20,
     justifyContent: "flex-end",
   },
   toastCard: {
-    backgroundColor: "rgba(255,255,255,0.98)",
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(45,106,79,0.16)",
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
-  toastHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  toastTitle: { fontSize: 14, fontWeight: "900", color: "#2e4d35" },
-  toastBody: { fontSize: 13, color: "#374151", fontWeight: "700", lineHeight: 18 },
+  toastHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  toastTitle: { fontSize: 17, fontWeight: "900", color: "#1b4332" },
+  toastBody: { fontSize: 15, color: "#2d6a4f", fontWeight: "600", lineHeight: 22 },
 });

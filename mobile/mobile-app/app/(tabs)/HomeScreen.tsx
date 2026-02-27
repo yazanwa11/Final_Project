@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useTranslation } from 'react-i18next';
 
 // =========================================================
 // UTILITIES
@@ -25,20 +26,20 @@ import { useFocusEffect } from "@react-navigation/native";
 
 const DAY = 86400000;
 
-function timeRemaining(timestamp: number) {
+function timeRemaining(timestamp: number, t: any) {
   const now = Date.now();
   const diff = timestamp - now;
 
-  if (diff <= 0) return { text: "Overdue", overdue: true };
+  if (diff <= 0) return { text: t('home.overdue'), overdue: true };
 
   const mins = Math.floor(diff / 60000);
   const days = Math.floor(mins / 1440);
   const hours = Math.floor((mins % 1440) / 60);
   const minutes = mins % 60;
 
-  if (days > 0) return { text: `${days}d ${hours}h`, overdue: false };
-  if (hours > 0) return { text: `${hours}h ${minutes}m`, overdue: false };
-  return { text: `${minutes}m`, overdue: false };
+  if (days > 0) return { text: `${days}${t('home.daysShort')} ${hours}${t('home.hoursShort')}`, overdue: false };
+  if (hours > 0) return { text: `${hours}${t('home.hoursShort')} ${minutes}${t('home.minutesShort')}`, overdue: false };
+  return { text: `${minutes}${t('home.minutesShort')}`, overdue: false };
 }
 
 function isToday(timestamp: number) {
@@ -70,11 +71,14 @@ function isTomorrow(timestamp: number) {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [user, setUser] = useState<any>(null);
   const [plants, setPlants] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [weather, setWeather] = useState<any>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -94,6 +98,7 @@ export default function HomeScreen() {
       loadUser();
       loadPlants();
       loadUnread();
+      loadWeather();
     }, [])
   );
 
@@ -141,7 +146,28 @@ export default function HomeScreen() {
       setUnreadCount(unread);
     } catch {
       setUnreadCount(0);
+    
+
+  const loadWeather = async () => {
+    try {
+      setWeatherLoading(true);
+      const token = await AsyncStorage.getItem("access");
+      if (!token) return;
+
+      const res = await fetch("http://10.0.2.2:8000/api/weather/forecast/?location=Tel Aviv", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setWeather(data);
+      }
+    } catch (error) {
+      console.error("Failed to load weather:", error);
+    } finally {
+      setWeatherLoading(false);
     }
+  };}
   };
 
   // =========================================================
@@ -167,10 +193,10 @@ export default function HomeScreen() {
         list.push({
           plantId: p.id,
           name: p.name,
-          type: "Water",
+          type: t('home.water'),
           icon: "droplet",
           timestamp: nextWater,
-          ...timeRemaining(nextWater),
+          ...timeRemaining(nextWater, t),
         });
       }
 
@@ -187,10 +213,10 @@ export default function HomeScreen() {
         list.push({
           plantId: p.id,
           name: p.name,
-          type: "Sunlight",
+          type: t('home.sunlight'),
           icon: "sun",
           timestamp: nextSun,
-          ...timeRemaining(nextSun),
+          ...timeRemaining(nextSun, t),
         });
       }
     });
@@ -264,8 +290,8 @@ export default function HomeScreen() {
                 <View>
                   <Text style={styles.date}>{today}</Text>
                   <Text style={styles.greeting}>
-                    Welcome,
-                    <Text style={styles.username}> {user?.username || "Buddy"} 🌿</Text>
+                    {t('home.welcome')}
+                    <Text style={styles.username}> {user?.username || t('home.buddy')} 🌿</Text>
                   </Text>
                 </View>
 
@@ -292,7 +318,50 @@ export default function HomeScreen() {
                     activeOpacity={0.9}
                   >
                     <Image
-                      source={{
+              WEATHER FORECAST */}
+          {weather && weather.days && weather.days.length > 0 && (
+            <View style={styles.weatherCard}>
+              <View style={styles.weatherHeader}>
+                <Feather name="cloud" size={20} color="#3e7c52" />
+                <Text style={styles.weatherTitle}>{t('home.weather')} - {weather.location}</Text>
+              </View>
+              <View style={styles.weatherDays}>
+                {weather.days.map((day: any, index: number) => {
+                  const date = new Date(day.date);
+                  const dayName = index === 0 
+                    ? t('home.today') 
+                    : index === 1 
+                      ? t('home.tomorrow') 
+                      : date.toLocaleDateString('en-US', { weekday: 'short' });
+                  
+                  const hasRain = day.precipitation_probability > 30;
+                  
+                  return (
+                    <View key={index} style={styles.weatherDay}>
+                      <Text style={styles.weatherDayName}>{dayName}</Text>
+                      <View style={styles.weatherIcon}>
+                        <Feather 
+                          name={hasRain ? "cloud-rain" : "sun"} 
+                          size={24} 
+                          color={hasRain ? "#4a90e2" : "#f59e0b"} 
+                        />
+                      </View>
+                      <Text style={styles.weatherTemp}>
+                        {Math.round(day.temp_max)}° / {Math.round(day.temp_min)}°
+                      </Text>
+                      {hasRain && (
+                        <Text style={styles.weatherRain}>
+                          {Math.round(day.precipitation_probability)}%
+                        </Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/*         source={{
                         uri:
                           user?.avatar && user.avatar !== "null"
                             ? user.avatar
@@ -308,15 +377,15 @@ export default function HomeScreen() {
 
           {/* SUMMARY SECTION */}
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryText}>🌱 Plants: {plants.length}</Text>
-            <Text style={styles.summaryText}>💧 Tasks: {tasks.length}</Text>
-            <Text style={styles.summaryText}>⏰ Overdue: {overdue.length}</Text>
+            <Text style={styles.summaryText}>🌱 {t('home.plantsLabel')} {plants.length}</Text>
+            <Text style={styles.summaryText}>💧 {t('home.tasksLabel')} {tasks.length}</Text>
+            <Text style={styles.summaryText}>⏰ {t('home.overdueLabel')} {overdue.length}</Text>
           </View>
 
           {/* MOST URGENT TASK */}
           {mostUrgent && (
             <View style={styles.taskHighlight}>
-              <Text style={styles.sectionTitle}>Most Urgent</Text>
+              <Text style={styles.sectionTitle}>{t('home.mostUrgent')}</Text>
 
               <View style={styles.taskCard}>
                 <Feather
@@ -335,7 +404,7 @@ export default function HomeScreen() {
                       mostUrgent.overdue && { color: "#b91c1c" },
                     ]}
                   >
-                    {mostUrgent.overdue ? "Overdue" : `In ${mostUrgent.text}`}
+                    {mostUrgent.overdue ? t('home.overdue') : `${t('home.in')} ${mostUrgent.text}`}
                   </Text>
                 </View>
               </View>
@@ -345,14 +414,14 @@ export default function HomeScreen() {
           {/* UPCOMING TASKS SECTIONS */}
           {overdue.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>Overdue</Text>
-              {overdue.map((t, i) => (
+              <Text style={styles.sectionTitle}>{t('home.overdue')}</Text>
+              {overdue.map((task, i) => (
                 <View key={i} style={styles.taskItemOverdue}>
-                  <Feather name={t.icon} size={20} color="#b91c1c" />
+                  <Feather name={task.icon} size={20} color="#b91c1c" />
                   <Text style={styles.taskName}>
-                    {t.type} — {t.name}
+                    {task.type} — {task.name}
                   </Text>
-                  <Text style={styles.taskOverdue}>Overdue</Text>
+                  <Text style={styles.taskOverdue}>{t('home.overdue')}</Text>
                 </View>
               ))}
             </>
@@ -360,14 +429,14 @@ export default function HomeScreen() {
 
           {todayTasks.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>Today</Text>
-              {todayTasks.map((t, i) => (
+              <Text style={styles.sectionTitle}>{t('home.today')}</Text>
+              {todayTasks.map((task, i) => (
                 <View key={i} style={styles.taskItem}>
-                  <Feather name={t.icon} size={20} color="#3e7c52" />
+                  <Feather name={task.icon} size={20} color="#3e7c52" />
                   <Text style={styles.taskName}>
-                    {t.type} — {t.name}
+                    {task.type} — {task.name}
                   </Text>
-                  <Text style={styles.taskTime}>In {t.text}</Text>
+                  <Text style={styles.taskTime}>{t('home.in')} {task.text}</Text>
                 </View>
               ))}
             </>
@@ -375,14 +444,14 @@ export default function HomeScreen() {
 
           {tomorrowTasks.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>Tomorrow</Text>
-              {tomorrowTasks.map((t, i) => (
+              <Text style={styles.sectionTitle}>{t('home.tomorrow')}</Text>
+              {tomorrowTasks.map((task, i) => (
                 <View key={i} style={styles.taskItem}>
-                  <Feather name={t.icon} size={20} color="#3e7c52" />
+                  <Feather name={task.icon} size={20} color="#3e7c52" />
                   <Text style={styles.taskName}>
-                    {t.type} — {t.name}
+                    {task.type} — {task.name}
                   </Text>
-                  <Text style={styles.taskTime}>In {t.text}</Text>
+                  <Text style={styles.taskTime}>{t('home.in')} {task.text}</Text>
                 </View>
               ))}
             </>
@@ -390,14 +459,14 @@ export default function HomeScreen() {
 
           {laterTasks.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>Later</Text>
-              {laterTasks.map((t, i) => (
+              <Text style={styles.sectionTitle}>{t('home.later')}</Text>
+              {laterTasks.map((task, i) => (
                 <View key={i} style={styles.taskItem}>
-                  <Feather name={t.icon} size={20} color="#3e7c52" />
+                  <Feather name={task.icon} size={20} color="#3e7c52" />
                   <Text style={styles.taskName}>
-                    {t.type} — {t.name}
+                    {task.type} — {task.name}
                   </Text>
-                  <Text style={styles.taskTime}>In {t.text}</Text>
+                  <Text style={styles.taskTime}>{t('home.in')} {task.text}</Text>
                 </View>
               ))}
             </>
@@ -490,6 +559,61 @@ const styles = StyleSheet.create({
     color: "#3e7c52",
     fontWeight: "600",
     marginBottom: 6,
+  },
+
+  weatherCard: {
+    marginTop: 20,
+    padding: 20,
+    borderRadius: 20,
+    backgroundColor: "#ffffffdd",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  weatherHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+    gap: 8,
+  },
+  weatherTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#3e7c52",
+  },
+  weatherDays: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  weatherDay: {
+    flex: 1,
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "#f0f5f1",
+  },
+  weatherDayName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#3e7c52",
+    marginBottom: 8,
+  },
+  weatherIcon: {
+    marginVertical: 8,
+  },
+  weatherTemp: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#2e4d35",
+    marginTop: 8,
+  },
+  weatherRain: {
+    fontSize: 12,
+    color: "#4a90e2",
+    marginTop: 4,
+    fontWeight: "600",
   },
 
   sectionTitle: {

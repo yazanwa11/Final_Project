@@ -13,8 +13,10 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { useTranslation } from 'react-i18next';
 
 export default function ProfileScreen() {
+    const { t, i18n } = useTranslation();
     const [user, setUser] = useState<{
         username: string;
         email: string;
@@ -22,6 +24,7 @@ export default function ProfileScreen() {
     } | null>(null);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
+    const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
 
     // Fetch user whenever screen is focused
     useFocusEffect(
@@ -57,10 +60,10 @@ export default function ProfileScreen() {
     );
 
     const handleLogout = async () => {
-        Alert.alert("Logout", "Are you sure you want to log out?", [
-            { text: "Cancel", style: "cancel" },
+        Alert.alert(t('profile.logout'), t('profile.logoutConfirm'), [
+            { text: t('common.cancel'), style: "cancel" },
             {
-                text: "Logout",
+                text: t('profile.logout'),
                 style: "destructive",
                 onPress: async () => {
                     await AsyncStorage.removeItem("access");
@@ -71,13 +74,18 @@ export default function ProfileScreen() {
         ]);
     };
 
+    const changeLanguage = async (lang: string) => {
+        await i18n.changeLanguage(lang);
+        setCurrentLanguage(lang);
+    };
+
     return (
         <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
             <StatusBar barStyle="dark-content" backgroundColor="#fdfdfd" />
             <ScrollView contentContainerStyle={styles.scroll}>
                 {/* Header */}
                 <View style={styles.header}>
-                    <Text style={styles.title}>Profile</Text>
+                    <Text style={styles.title}>{t('profile.title')}</Text>
                 </View>
 
                 {/* Profile Card */}
@@ -99,7 +107,7 @@ export default function ProfileScreen() {
                         style={styles.editButton}
                         onPress={() => router.push("/EditProfileScreen")}
                     >
-                        <Text style={styles.editText}>Edit Profile</Text>
+                        <Text style={styles.editText}>{t('profile.editProfile')}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -107,36 +115,71 @@ export default function ProfileScreen() {
                 <View style={styles.statsContainer}>
                     <View style={styles.statBox}>
                         <Text style={styles.statValue}>8</Text>
-                        <Text style={styles.statLabel}>Plants</Text>
+                        <Text style={styles.statLabel}>{t('profile.plants')}</Text>
                     </View>
 
                     <View style={styles.statBox}>
                         <Text style={styles.statValue}>3</Text>
-                        <Text style={styles.statLabel}>Tasks</Text>
+                        <Text style={styles.statLabel}>{t('profile.tasks')}</Text>
                     </View>
 
                     <View style={styles.statBox}>
                         <Text style={styles.statValue}>75%</Text>
-                        <Text style={styles.statLabel}>Progress</Text>
+                        <Text style={styles.statLabel}>{t('profile.progress')}</Text>
+                    </View>
+                </View>
+
+                {/* Language Settings */}
+                <View style={styles.settingsBox}>
+                    <Text style={styles.sectionTitle}>{t('profile.language')}</Text>
+                    <View style={styles.languageContainer}>
+                        <TouchableOpacity
+                            style={[
+                                styles.languageButton,
+                                currentLanguage === 'he' && styles.languageButtonActive
+                            ]}
+                            onPress={() => changeLanguage('he')}
+                        >
+                            <Text style={[
+                                styles.languageText,
+                                currentLanguage === 'he' && styles.languageTextActive
+                            ]}>
+                                🇮🇱 {t('profile.hebrew')}
+                            </Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                            style={[
+                                styles.languageButton,
+                                currentLanguage === 'en' && styles.languageButtonActive
+                            ]}
+                            onPress={() => changeLanguage('en')}
+                        >
+                            <Text style={[
+                                styles.languageText,
+                                currentLanguage === 'en' && styles.languageTextActive
+                            ]}>
+                                🇺🇸 {t('profile.english')}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* About */}
                 <View style={styles.aboutBox}>
-                    <Text style={styles.sectionTitle}>About Me</Text>
+                    <Text style={styles.sectionTitle}>{t('profile.aboutMe')}</Text>
                     <Text style={styles.aboutText}>
-                        I’m passionate about plants 🌿 and sustainable growth.
-                        GreenBuddy helps me track, water, and care for my green friends with ease.
+                        {t('profile.aboutText')}
                     </Text>
                 </View>
 
                 {/* Logout */}
                 <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                    <Text style={styles.logoutText}>Log Out</Text>
+                    <Text style={styles.logoutText}>{t('profile.logout')}</Text>
                 </TouchableOpacity>
 
                 {/* Footer */}
-                <Text style={styles.footer}>GreenBuddy © 2025 • Version 1.0</Text>
+                <Text style={styles.footer}>{t('profile.footer')}</Text>
             </ScrollView>
         </Animated.View>
     );
@@ -220,6 +263,43 @@ const styles = StyleSheet.create({
     statLabel: {
         color: "#666",
         marginTop: 5,
+    },
+    settingsBox: {
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        padding: 20,
+        shadowColor: "#000",
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 2,
+        marginBottom: 20,
+    },
+    languageContainer: {
+        flexDirection: "row",
+        gap: 12,
+        marginTop: 12,
+    },
+    languageButton: {
+        flex: 1,
+        backgroundColor: "#f5f5f5",
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: "center",
+        borderWidth: 2,
+        borderColor: "transparent",
+    },
+    languageButtonActive: {
+        backgroundColor: "#E8F5E9",
+        borderColor: "#4CAF50",
+    },
+    languageText: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: "#666",
+    },
+    languageTextActive: {
+        color: "#4CAF50",
+        fontWeight: "700",
     },
     aboutBox: {
         backgroundColor: "#fff",

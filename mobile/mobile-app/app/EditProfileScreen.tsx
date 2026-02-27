@@ -16,8 +16,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from 'react-i18next';
 
 export default function EditProfileScreen() {
+    const { t } = useTranslation();
     const router = useRouter();
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
@@ -147,7 +149,7 @@ export default function EditProfileScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.header}
             >
-                <Text style={styles.title}>Edit Profile 🌱</Text>
+                <Text style={styles.title}>{t('editProfile.title')}</Text>
             </LinearGradient>
 
             <TouchableOpacity onPress={pickImage} style={styles.avatarContainer}>
@@ -156,7 +158,7 @@ export default function EditProfileScreen() {
                 ) : (
                     <View style={styles.avatarPlaceholder}>
                         <Feather name="camera" size={40} color="#74c69d" />
-                        <Text style={{ color: "#4a7856" }}>Upload Photo</Text>
+                        <Text style={{ color: "#4a7856" }}>{t('editProfile.uploadPhoto')}</Text>
                     </View>
                 )}
             </TouchableOpacity>
@@ -165,7 +167,7 @@ export default function EditProfileScreen() {
                 <View style={styles.inputContainer}>
                     <Feather name="user" size={18} color="#4a7856" style={styles.icon} />
                     <TextInput
-                        placeholder="Username"
+                        placeholder={t('editProfile.username')}
                         value={username}
                         onChangeText={setUsername}
                         style={styles.input}
@@ -176,7 +178,7 @@ export default function EditProfileScreen() {
                 <View style={styles.inputContainer}>
                     <Feather name="mail" size={18} color="#4a7856" style={styles.icon} />
                     <TextInput
-                        placeholder="Email"
+                        placeholder={t('editProfile.email')}
                         value={email}
                         onChangeText={setEmail}
                         style={styles.input}
@@ -201,7 +203,7 @@ export default function EditProfileScreen() {
                     ) : (
                         <>
                             <Feather name="check-circle" size={22} color="#fff" />
-                            <Text style={styles.saveText}>Save Changes</Text>
+                            <Text style={styles.saveText}>{t('editProfile.saveChanges')}</Text>
                         </>
                     )}
                 </LinearGradient>
@@ -214,9 +216,9 @@ export default function EditProfileScreen() {
                         style={[styles.modalCard, { transform: [{ scale: scaleAnim }] }]}
                     >
                         <Feather name="check-circle" size={60} color="#4CAF50" />
-                        <Text style={styles.modalTitle}>Profile Updated! 🌿</Text>
+                        <Text style={styles.modalTitle}>{t('editProfile.profileUpdated')}</Text>
                         <Text style={styles.modalMessage}>
-                            Your profile has been updated successfully.
+                            {t('editProfile.updateSuccess')}
                         </Text>
 
                         <TouchableOpacity
@@ -226,7 +228,7 @@ export default function EditProfileScreen() {
                                 router.back();
                             }}
                         >
-                            <Text style={styles.modalButtonText}>Continue</Text>
+                            <Text style={styles.modalButtonText}>{t('editProfile.continue')}</Text>
                         </TouchableOpacity>
                     </Animated.View>
                 </View>

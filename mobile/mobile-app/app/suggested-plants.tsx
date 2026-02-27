@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 type SuggestedPlant = {
     id?: number;
@@ -28,6 +29,7 @@ type SuggestedPlant = {
 const MY_PLANTS_ROUTE = "/(tabs)/MyPlantsScreen";
 
 export default function SuggestedPlantsScreen() {
+    const { t } = useTranslation();
     const [plants, setPlants] = useState<SuggestedPlant[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -158,8 +160,8 @@ export default function SuggestedPlantsScreen() {
         <LinearGradient colors={["#d8f3dc", "#f6fff8"]} style={{ flex: 1 }}>
             <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
                 <View style={styles.container}>
-                    <Text style={styles.title}>Suggested Plants</Text>
-                    <Text style={styles.subtitle}>Pick one and we’ll set the schedule for you</Text>
+                    <Text style={styles.title}>{t('suggestedPlants.title')}</Text>
+                    <Text style={styles.subtitle}>{t('suggestedPlants.subtitle')}</Text>
 
                     <FlatList
                         data={plants}
@@ -169,8 +171,8 @@ export default function SuggestedPlantsScreen() {
                         ListEmptyComponent={
                             <View style={styles.empty}>
                                 <Feather name="search" size={22} color="#2d6a4f" />
-                                <Text style={styles.emptyTitle}>No suggestions yet</Text>
-                                <Text style={styles.emptyText}>Try again later or change the search query.</Text>
+                                <Text style={styles.emptyTitle}>{t('suggestedPlants.noSuggestionsYet')}</Text>
+                                <Text style={styles.emptyText}>{t('suggestedPlants.tryAgainLater')}</Text>
                             </View>
                         }
                         renderItem={({ item }) => (
@@ -196,15 +198,15 @@ export default function SuggestedPlantsScreen() {
 
                                     <View style={styles.pillsRow}>
                                         <View style={styles.pill}>
-                                            <Text style={styles.pillText}>💧 {item.watering_interval}d</Text>
+                                            <Text style={styles.pillText}>💧 {item.watering_interval}{t('home.daysShort')}</Text>
                                         </View>
                                         <View style={styles.pill}>
-                                            <Text style={styles.pillText}>☀️ {item.sunlight_interval}d</Text>
+                                            <Text style={styles.pillText}>☀️ {item.sunlight_interval}{t('home.daysShort')}</Text>
                                         </View>
                                     </View>
 
                                     <Text style={styles.hint} numberOfLines={1}>
-                                        Tap to add to My Plants
+                                        {t('suggestedPlants.tapToAdd')}
                                     </Text>
                                 </View>
 
@@ -220,7 +222,7 @@ export default function SuggestedPlantsScreen() {
                 <Modal transparent visible={confirmOpen} animationType="fade" onRequestClose={() => setConfirmOpen(false)}>
                     <View style={styles.modalBackdrop}>
                         <View style={styles.modalCard}>
-                            <Text style={styles.modalTitle}>Add this plant?</Text>
+                            <Text style={styles.modalTitle}>{t('suggestedPlants.addThisPlant')}</Text>
 
                             <View style={styles.modalRow}>
                                 {selected?.image ? (
@@ -235,14 +237,14 @@ export default function SuggestedPlantsScreen() {
                                     <Text style={styles.modalName} numberOfLines={2}>
                                         {selected?.name}
                                     </Text>
-                                    <Text style={styles.modalMeta}>💧 Every {selected?.watering_interval} days</Text>
-                                    <Text style={styles.modalMeta}>☀️ Every {selected?.sunlight_interval} days</Text>
+                                    <Text style={styles.modalMeta}>💧 {t('suggestedPlants.everyXDays', { days: selected?.watering_interval })}</Text>
+                                    <Text style={styles.modalMeta}>☀️ {t('suggestedPlants.everyXDays', { days: selected?.sunlight_interval })}</Text>
                                 </View>
                             </View>
 
                             <View style={styles.modalActions}>
                                 <Pressable style={[styles.btn, styles.btnGhost]} onPress={() => setConfirmOpen(false)} disabled={adding}>
-                                    <Text style={styles.btnGhostText}>Cancel</Text>
+                                    <Text style={styles.btnGhostText}>{t('common.cancel')}</Text>
                                 </Pressable>
 
                                 <Pressable
@@ -250,7 +252,7 @@ export default function SuggestedPlantsScreen() {
                                     onPress={() => selected && addSuggestedPlant(selected)}
                                     disabled={adding}
                                 >
-                                    <Text style={styles.btnPrimaryText}>{adding ? "Adding..." : "Add Plant"}</Text>
+                                    <Text style={styles.btnPrimaryText}>{adding ? t('suggestedPlants.adding') : t('suggestedPlants.addPlant')}</Text>
                                 </Pressable>
                             </View>
                         </View>
@@ -265,12 +267,12 @@ export default function SuggestedPlantsScreen() {
                                 <Feather name="alert-triangle" size={26} color="#2d6a4f" />
                             </View>
 
-                            <Text style={styles.dupTitle}>Already added 🌿</Text>
-                            <Text style={styles.dupText}>This plant is already in your My Plants list.</Text>
+                            <Text style={styles.dupTitle}>{t('suggestedPlants.alreadyAdded')}</Text>
+                            <Text style={styles.dupText}>{t('suggestedPlants.plantAlreadyInList')}</Text>
 
                             <View style={styles.dupActions}>
                                 <Pressable style={[styles.btn, styles.btnGhost]} onPress={() => setDupVisible(false)}>
-                                    <Text style={styles.btnGhostText}>Close</Text>
+                                    <Text style={styles.btnGhostText}>{t('suggestedPlants.close')}</Text>
                                 </Pressable>
 
                                 <Pressable
@@ -280,7 +282,7 @@ export default function SuggestedPlantsScreen() {
                                         router.replace(MY_PLANTS_ROUTE);
                                     }}
                                 >
-                                    <Text style={styles.btnPrimaryText}>Go to My Plants</Text>
+                                    <Text style={styles.btnPrimaryText}>{t('suggestedPlants.goToMyPlants')}</Text>
                                 </Pressable>
                             </View>
                         </Animated.View>

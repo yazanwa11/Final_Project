@@ -13,6 +13,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { useTranslation } from "react-i18next";
 
 type Notif = {
   id: number;
@@ -25,6 +26,7 @@ type Notif = {
 };
 
 export default function NotificationsScreen() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Notif[]>([]);
   const [busy, setBusy] = useState(false);
@@ -110,7 +112,7 @@ export default function NotificationsScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#2d6a4f" />
-        <Text style={styles.loadingText}>Loading notifications...</Text>
+        <Text style={styles.loadingText}>{t('notifications.loadingNotifications')}</Text>
       </View>
     );
   }
@@ -127,15 +129,15 @@ export default function NotificationsScreen() {
             </Pressable>
 
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Notifications</Text>
+              <Text style={styles.title}>{t('notifications.title')}</Text>
               <Text style={styles.subtitle}>
-                {unread > 0 ? `${unread} unread` : "All caught up ✨"}
+                {unread > 0 ? t('notifications.unreadCount', { count: unread }) : t('notifications.allCaughtUp')}
               </Text>
             </View>
 
             <Pressable onPress={markAll} style={[styles.markAllBtn, busy && { opacity: 0.8 }]} disabled={busy}>
               <Feather name="check-circle" size={16} color="white" />
-              <Text style={styles.markAllText}>{busy ? "..." : "Read all"}</Text>
+              <Text style={styles.markAllText}>{busy ? t('notifications.processing') : t('notifications.readAll')}</Text>
             </Pressable>
           </View>
 
@@ -147,8 +149,8 @@ export default function NotificationsScreen() {
             ListEmptyComponent={
               <View style={styles.empty}>
                 <Feather name="bell-off" size={22} color="#3e7c52" />
-                <Text style={styles.emptyTitle}>No notifications</Text>
-                <Text style={styles.emptyText}>When experts post or reply, you’ll see it here.</Text>
+                <Text style={styles.emptyTitle}>{t('notifications.emptyTitle')}</Text>
+                <Text style={styles.emptyText}>{t('notifications.emptyText')}</Text>
               </View>
             }
             renderItem={({ item }) => (
@@ -162,7 +164,7 @@ export default function NotificationsScreen() {
 
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle} numberOfLines={1}>
-                    {item.title || "Notification"}
+                    {item.title || t('notifications.notification')}
                   </Text>
                   <Text style={styles.cardBody} numberOfLines={2}>
                     {item.body || ""}

@@ -160,4 +160,39 @@ MEDIA_ROOT = BASE_DIR / 'media'
 import os
 
 TREFLE_API_TOKEN = os.getenv("TREFLE_API_TOKEN")  # if using env
+PERENUAL_API_KEY = os.getenv("PERENUAL_API_KEY", "")
+
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    "evaluate-smart-reminders-every-15m": {
+        "task": "core.tasks.evaluate_smart_reminders",
+        "schedule": 15 * 60,
+    },
+    "dispatch-smart-notifications-every-1m": {
+        "task": "core.tasks.dispatch_smart_notifications",
+        "schedule": 60,
+    },
+    "recompute-all-health-scores-every-6h": {
+        "task": "core.tasks.recompute_all_health_scores",
+        "schedule": 6 * 60 * 60,
+    },
+    "sync-assistant-expert-tips-every-12h": {
+        "task": "core.tasks.sync_assistant_expert_tips",
+        "schedule": 12 * 60 * 60,
+    },
+}
+
+WEATHER_HEATWAVE_THRESHOLD_C = float(os.getenv("WEATHER_HEATWAVE_THRESHOLD_C", "35"))
+WEATHER_FROST_THRESHOLD_C = float(os.getenv("WEATHER_FROST_THRESHOLD_C", "2"))
+WEATHER_RAIN_PROB_SKIP_THRESHOLD = float(os.getenv("WEATHER_RAIN_PROB_SKIP_THRESHOLD", "0.6"))
+WEATHER_RAIN_MM_SKIP_THRESHOLD = float(os.getenv("WEATHER_RAIN_MM_SKIP_THRESHOLD", "2.0"))
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
+GEMINI_VISION_MODEL = os.getenv("GEMINI_VISION_MODEL", "gemini-2.5-flash")
 

@@ -13,9 +13,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from 'react-i18next';
 import { loginStyles as styles } from "./styles/login.styles";
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -56,10 +58,10 @@ export default function LoginScreen() {
         await AsyncStorage.setItem("refresh", data.refresh);
         router.push("/(tabs)/HomeScreen");
       } else {
-        showError("Incorrect username or password");
+        showError(t('auth.incorrectCredentials'));
       }
     } catch {
-      showError("Network error. Try again.");
+      showError(t('auth.networkErrorLogin'));
     }
   };
 
@@ -81,8 +83,8 @@ export default function LoginScreen() {
         />
 
 
-        <Text style={styles.title}>Welcome Back 🌿</Text>
-        <Text style={styles.subtitle}>Log in to care for your plants</Text>
+        <Text style={styles.title}>{t('auth.welcomeBack')}</Text>
+        <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
 
         {/* Animated Error Box */}
         {errorMsg !== "" && (
@@ -113,7 +115,7 @@ export default function LoginScreen() {
             <Feather name="user" size={18} color="#4a7856" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Username"
+              placeholder={t('auth.username')}
               placeholderTextColor="#88a096"
               value={username}
               onChangeText={setUsername}
@@ -124,7 +126,7 @@ export default function LoginScreen() {
             <Feather name="lock" size={18} color="#4a7856" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Password"
+              placeholder={t('auth.password')}
               placeholderTextColor="#88a096"
               secureTextEntry
               value={password}
@@ -139,15 +141,15 @@ export default function LoginScreen() {
             colors={["#74c69d", "#52b788"]}
             style={styles.buttonGradient}
           >
-            <Text style={styles.buttonText}>Log In</Text>
+            <Text style={styles.buttonText}>{t('auth.logIn')}</Text>
           </LinearGradient>
         </TouchableOpacity>
 
         {/* Sign Up */}
         <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
           <Text style={styles.link}>
-            Don’t have an account?{" "}
-            <Text style={styles.linkHighlight}>Sign up</Text>
+            {t('auth.dontHaveAccount')}{" "}
+            <Text style={styles.linkHighlight}>{t('auth.signUp')}</Text>
           </Text>
         </TouchableOpacity>
       </LinearGradient>

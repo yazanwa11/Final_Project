@@ -17,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { useTranslation } from "react-i18next";
 
 type Inquiry = {
   id: number;
@@ -27,6 +28,7 @@ type Inquiry = {
 };
 
 export default function ExpertInboxScreen() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Inquiry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export default function ExpertInboxScreen() {
       setItems(Array.isArray(data) ? data : []);
     } catch (e: any) {
       setItems([]);
-      setError(e?.message || "Failed to load inbox");
+      setError(e?.message || t("expertInbox.loadError"));
     } finally {
       setLoading(false);
     }
@@ -125,7 +127,7 @@ export default function ExpertInboxScreen() {
       // remove from inbox list
       setItems((prev) => prev.filter((x) => x.id !== selected.id));
     } catch (e: any) {
-      setError(e?.message || "Could not send answer");
+      setError(e?.message || t("expertInbox.sendError"));
     } finally {
       setAnswering(false);
     }
@@ -135,7 +137,7 @@ export default function ExpertInboxScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#2d6a4f" />
-        <Text style={styles.loadingText}>Loading inbox...</Text>
+        <Text style={styles.loadingText}>{t("expertInbox.loadingInbox")}</Text>
       </View>
     );
   }
@@ -150,8 +152,8 @@ export default function ExpertInboxScreen() {
             </Pressable>
 
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Expert Inbox</Text>
-              <Text style={styles.subtitle}>Answer questions from users 💬</Text>
+              <Text style={styles.title}>{t("expertInbox.title")}</Text>
+              <Text style={styles.subtitle}>{t("expertInbox.subtitle")}</Text>
             </View>
 
             <Pressable onPress={load} style={styles.iconBtn}>
@@ -176,8 +178,8 @@ export default function ExpertInboxScreen() {
             ListEmptyComponent={
               <View style={styles.empty}>
                 <Feather name="inbox" size={22} color="#3e7c52" />
-                <Text style={styles.emptyTitle}>No questions</Text>
-                <Text style={styles.emptyText}>When users ask, they’ll appear here.</Text>
+                <Text style={styles.emptyTitle}>{t("expertInbox.emptyTitle")}</Text>
+                <Text style={styles.emptyText}>{t("expertInbox.emptyText")}</Text>
               </View>
             }
             renderItem={({ item }) => (
@@ -210,7 +212,7 @@ export default function ExpertInboxScreen() {
           <View style={styles.modalBackdrop}>
             <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
               <View style={styles.modalCard}>
-                <Text style={styles.modalTitle}>Write an answer</Text>
+                <Text style={styles.modalTitle}>{t("expertInbox.writeAnswer")}</Text>
 
                 <View style={styles.qBox}>
                   <Text style={styles.qTitle}>
@@ -222,7 +224,7 @@ export default function ExpertInboxScreen() {
                 <TextInput
                   value={answerText}
                   onChangeText={setAnswerText}
-                  placeholder="Your answer..."
+                  placeholder={t("expertInbox.answerPlaceholder")}
                   placeholderTextColor="#7aa68a"
                   style={[styles.input, styles.textArea]}
                   multiline
@@ -230,7 +232,7 @@ export default function ExpertInboxScreen() {
 
                 <View style={styles.modalActions}>
                   <Pressable style={[styles.btn, styles.btnGhost]} onPress={() => setAnswerOpen(false)} disabled={answering}>
-                    <Text style={styles.btnGhostText}>Cancel</Text>
+                    <Text style={styles.btnGhostText}>{t("common.cancel")}</Text>
                   </Pressable>
 
                   <Pressable
@@ -238,7 +240,7 @@ export default function ExpertInboxScreen() {
                     onPress={submitAnswer}
                     disabled={answering || answerText.trim().length === 0}
                   >
-                    <Text style={styles.btnPrimaryText}>{answering ? "Sending..." : "Send"}</Text>
+                    <Text style={styles.btnPrimaryText}>{answering ? t("expertInbox.sending") : t("expertInbox.send")}</Text>
                   </Pressable>
                 </View>
               </View>

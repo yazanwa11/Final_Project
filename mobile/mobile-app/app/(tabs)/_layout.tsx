@@ -3,29 +3,38 @@ import React from "react";
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTranslation } from 'react-i18next';
 
 export default function TabLayout() {
+  const { t } = useTranslation();
+  
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarActiveTintColor: "#2E7D32",
-        tabBarInactiveTintColor: "#9E9E9E",
+        tabBarActiveTintColor: "#1b4332",
+        tabBarInactiveTintColor: "#95b8a3",
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "700",
+          letterSpacing: 0.2,
+        },
         tabBarStyle: {
           backgroundColor: "#ffffff",
           borderTopWidth: 0,
-          elevation: 15,
-          height: 70,
-          paddingBottom: 10,
-          paddingTop: 5,
-          shadowColor: "#000",
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
+          elevation: 20,
+          height: 72,
+          paddingBottom: 12,
+          paddingTop: 8,
+          shadowColor: "#2d6a4f",
+          shadowOpacity: 0.12,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: -4 },
         },
         tabBarBackground: () => (
           <LinearGradient
-            colors={["#ffffff", "#f6f9f6"]}
+            colors={["#ffffff", "#f8faf9"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={{ flex: 1 }}
@@ -36,7 +45,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="ExploreScreen"
         options={{
-          title: "Explore",
+          title: t('tabs.explore'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="compass" size={size} color={color} />
           ),
@@ -46,7 +55,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="HomeScreen"
         options={{
-          title: "Home",
+          title: t('tabs.home'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="home" size={size} color={color} />
           ),
@@ -56,7 +65,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="AddPlantScreen"
         options={{
-          title: "Add",
+          title: t('tabs.add'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="plus-circle" size={size + 2} color={color} />
           ),
@@ -66,7 +75,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="MyPlantsScreen"
         options={{
-          title: "My Plants",
+          title: t('tabs.myPlants'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="droplet" size={size} color={color} />
           ),
@@ -76,7 +85,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="ProfileScreen"
         options={{
-          title: "Profile",
+          title: t('tabs.profile'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="user" size={size} color={color} />
           ),

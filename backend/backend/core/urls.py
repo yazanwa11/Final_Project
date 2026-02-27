@@ -7,6 +7,8 @@ from django.conf.urls.static import static
 
 from .views import RegisterView, UserMeView, PlantViewSet
 from . import views
+from . import weather_views
+from . import assistant_views
 
 from .views import (
     list_notifications,
@@ -19,6 +21,12 @@ from .views import (
     ask_expert,                    # ✅ NEW
     expert_inbox,                  # ✅ NEW
     answer_inquiry,                # ✅ NEW
+    create_prediction,
+    prediction_detail,
+    prediction_list,
+    plant_health_score,
+    plant_health_history,
+    recompute_plant_health,
 )
 
 router = DefaultRouter()
@@ -71,6 +79,28 @@ urlpatterns = [
     # -------------------------
     # Plants CRUD (ViewSet)
     # -------------------------
+    path("predictions/", prediction_list),
+    path("predictions/create/", create_prediction),
+    path("predictions/<uuid:prediction_id>/", prediction_detail),
+    path("plants/<int:plant_id>/health-score/", plant_health_score),
+    path("plants/<int:plant_id>/health-history/", plant_health_history),
+    path("plants/<int:plant_id>/health-score/recompute/", recompute_plant_health),
+
+    # -------------------------
+    # Smart Weather Reminders
+    # -------------------------
+    path("weather/evaluate/", weather_views.trigger_weather_evaluation),
+    path("weather/plants/<int:plant_id>/sync/", weather_views.trigger_weather_sync_for_plant),
+    path("weather/plants/<int:plant_id>/status/", weather_views.plant_weather_status),
+    path("weather/forecast/", weather_views.get_forecast),
+
+    # -------------------------
+    # AI Assistant
+    # -------------------------
+    path("assistant/chat/", assistant_views.assistant_chat),
+    path("assistant/sessions/", assistant_views.assistant_sessions),
+    path("assistant/sessions/<uuid:session_id>/messages/", assistant_views.assistant_session_messages),
+
     path("", include(router.urls)),
 ]
 

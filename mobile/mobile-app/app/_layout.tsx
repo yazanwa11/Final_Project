@@ -1,5 +1,6 @@
 // app/_layout.tsx
 import { Stack } from "expo-router";
+import '../i18n/config'; // Initialize i18n
 
 export default function RootLayout() {
   return (
@@ -10,6 +11,7 @@ export default function RootLayout() {
 
       <Stack.Screen name="EditProfileScreen" />
       <Stack.Screen name="PlantDetailsScreen" />
+      <Stack.Screen name="AssistantScreen" />
 
       {/* ✅ NEW */}
       <Stack.Screen name="NotificationsScreen" />
