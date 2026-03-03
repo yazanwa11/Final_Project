@@ -34,6 +34,16 @@ type Plant = {
     planting_date?: string | null;
 };
 
+type IdentifiedPlant = {
+    identified_name: string;
+    category: string;
+    confidence_score: number;
+    watering_interval: number;
+    sunlight_interval: number;
+    image?: string | null;
+    prediction_id: string;
+};
+
 // 🌿 Helper: Emoji by category
 const getEmojiForCategory = (category: string) => {
     const lower = category.toLowerCase();
@@ -57,43 +67,160 @@ export default function MyPlantsScreen() {
     const [editImageUri, setEditImageUri] = useState<string | null>(null);
     const [editImageChanged, setEditImageChanged] = useState(false);
     const [editSaving, setEditSaving] = useState(false);
+    const [identifyOpen, setIdentifyOpen] = useState(false);
+    const [identifying, setIdentifying] = useState(false);
+    const [identifyImageUri, setIdentifyImageUri] = useState<string | null>(null);
+    const [identifiedPlant, setIdentifiedPlant] = useState<IdentifiedPlant | null>(null);
+    const [addingIdentified, setAddingIdentified] = useState(false);
     const router = useRouter();
 
     const locationOptions = ["Room", "Outside", "Balcony", "Garden", "Custom"];
 
+    const fetchPlants = useCallback(async () => {
+        setLoading(true);
+        try {
+            const token = await AsyncStorage.getItem("access");
+            if (!token) {
+                Alert.alert(t('common.error'), t('auth.loginRequired'));
+                return;
+            }
+
+            const res = await fetch("http://10.0.2.2:8000/api/plants/", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setPlants(data);
+            } else {
+                console.log(await res.text());
+                Alert.alert(t('common.error'), t('plants.fetchError'));
+            }
+        } catch (err) {
+            console.error(err);
+            Alert.alert(t('common.error'), t('common.networkError'));
+        } finally {
+            setLoading(false);
+        }
+    }, [t]);
+
     useFocusEffect(
         useCallback(() => {
-            const fetchPlants = async () => {
-                setLoading(true);
-                try {
-                    const token = await AsyncStorage.getItem("access");
-                    if (!token) {
-                        Alert.alert(t('common.error'), t('auth.loginRequired'));
-                        return;
-                    }
-
-                    const res = await fetch("http://10.0.2.2:8000/api/plants/", {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
-
-                    if (res.ok) {
-                        const data = await res.json();
-                        setPlants(data);
-                    } else {
-                        console.log(await res.text());
-                        Alert.alert(t('common.error'), t('plants.fetchError'));
-                    }
-                } catch (err) {
-                    console.error(err);
-                    Alert.alert(t('common.error'), t('common.networkError'));
-                } finally {
-                    setLoading(false);
-                }
-            };
-
             fetchPlants();
-        }, [])
+        }, [fetchPlants])
     );
+
+    const startIdentifyFlow = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            allowsEditing: false,
+            quality: 0.85,
+        });
+
+        if (result.canceled || !result.assets?.length) {
+            return;
+        }
+
+        const imageUri = result.assets[0].uri;
+        setIdentifyImageUri(imageUri);
+        setIdentifyOpen(true);
+        setIdentifying(true);
+        setIdentifiedPlant(null);
+
+        try {
+            const token = await AsyncStorage.getItem("access");
+            if (!token) {
+                Alert.alert(t('common.error'), t('auth.loginRequired'));
+                setIdentifyOpen(false);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("image", {
+                uri: imageUri,
+                name: "identify.jpg",
+                type: "image/jpeg",
+            } as any);
+            formData.append("language", "he");
+
+            const res = await fetch("http://10.0.2.2:8000/api/plants/identify/", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData,
+            });
+
+            const raw = await res.text();
+            if (!res.ok) {
+                throw new Error(raw || "Identification failed");
+            }
+
+            const data = JSON.parse(raw);
+            setIdentifiedPlant(data);
+        } catch (error: any) {
+            Alert.alert("זיהוי נכשל", error?.message || "לא הצלחנו לזהות את הצמח מהתמונה.");
+            setIdentifyOpen(false);
+        } finally {
+            setIdentifying(false);
+        }
+    };
+
+    const addIdentifiedPlantToMyPlants = async () => {
+        if (!identifiedPlant || addingIdentified) return;
+
+        try {
+            setAddingIdentified(true);
+            const token = await AsyncStorage.getItem("access");
+            if (!token) {
+                Alert.alert(t('common.error'), t('auth.loginRequired'));
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("name", identifiedPlant.identified_name);
+            formData.append("category", identifiedPlant.category || "Indoor");
+            formData.append("watering_interval", String(identifiedPlant.watering_interval || 4));
+            formData.append("sunlight_interval", String(identifiedPlant.sunlight_interval || 2));
+
+            if (identifiedPlant.image) {
+                formData.append("image_url", identifiedPlant.image);
+            }
+
+            if (identifyImageUri) {
+                const filename = identifyImageUri.split("/").pop() || `identified-${Date.now()}.jpg`;
+                const ext = filename.split(".").pop()?.toLowerCase();
+                const mime = ext === "png" ? "image/png" : "image/jpeg";
+
+                formData.append("image_file", {
+                    uri: identifyImageUri,
+                    name: filename,
+                    type: mime,
+                } as any);
+            }
+
+            const res = await fetch("http://10.0.2.2:8000/api/plants/", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            const raw = await res.text();
+            if (!res.ok) {
+                throw new Error(raw || "Failed to add identified plant");
+            }
+
+            await fetchPlants();
+            setIdentifyOpen(false);
+            setIdentifiedPlant(null);
+            setIdentifyImageUri(null);
+            Alert.alert("הצמח נוסף", "הצמח זוהה ונוסף לרשימת הצמחים שלך.");
+        } catch (error: any) {
+            Alert.alert("הוספה נכשלה", error?.message || "לא הצלחנו להוסיף את הצמח.");
+        } finally {
+            setAddingIdentified(false);
+        }
+    };
 
     const groupedPlants = plants.reduce((acc, plant) => {
         const area = plant.location?.trim() || "Unassigned";
@@ -196,6 +323,45 @@ export default function MyPlantsScreen() {
         }
     };
 
+    const deletePlant = async (plantId: string) => {
+        try {
+            const token = await AsyncStorage.getItem("access");
+            if (!token) {
+                Alert.alert(t('common.error'), t('auth.loginRequired'));
+                return;
+            }
+
+            const res = await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (!res.ok) {
+                const raw = await res.text();
+                throw new Error(raw || "Failed to delete plant");
+            }
+
+            setPlants((prev) => prev.filter((plant) => String(plant.id) !== String(plantId)));
+        } catch (error: any) {
+            Alert.alert("Delete failed", error?.message || "Could not delete the plant.");
+        }
+    };
+
+    const confirmDeletePlant = (plant: Plant) => {
+        Alert.alert(
+            "Remove plant",
+            `Are you sure you want to remove ${plant.name}?`,
+            [
+                { text: t('common.cancel'), style: "cancel" },
+                {
+                    text: "Remove",
+                    style: "destructive",
+                    onPress: () => deletePlant(String(plant.id)),
+                },
+            ]
+        );
+    };
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <LinearGradient
@@ -219,6 +385,13 @@ export default function MyPlantsScreen() {
                                 : t('plants.greenSpaceWaiting')}
                         </Text>
                     </LinearGradient>
+
+                    <View style={styles.identifyTopWrap}>
+                        <TouchableOpacity activeOpacity={0.9} style={styles.identifyTopBtn} onPress={startIdentifyFlow}>
+                            <Feather name="camera" size={16} color="#1b4332" />
+                            <Text style={styles.identifyTopBtnText}>מה הצמח הזה?</Text>
+                        </TouchableOpacity>
+                    </View>
 
                     {loading ? (
                         <ActivityIndicator size="large" color="#74c69d" style={{ marginTop: 60 }} />
@@ -247,6 +420,11 @@ export default function MyPlantsScreen() {
                                             <Pressable style={styles.editPill} onPress={() => openEditPlant(item)}>
                                                 <Feather name="edit-2" size={12} color="#fff" />
                                                 <Text style={styles.editPillText}>{t('common.edit')}</Text>
+                                            </Pressable>
+
+                                            <Pressable style={styles.deletePill} onPress={() => confirmDeletePlant(item)}>
+                                                <Feather name="trash-2" size={12} color="#fff" />
+                                                <Text style={styles.editPillText}>Delete</Text>
                                             </Pressable>
 
                                             <BlurView intensity={30} tint="light" style={styles.blurCard}>
@@ -372,6 +550,53 @@ export default function MyPlantsScreen() {
                     </View>
                 </Modal>
 
+                <Modal transparent visible={identifyOpen} animationType="fade" onRequestClose={() => setIdentifyOpen(false)}>
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalCard}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>זיהוי צמח עם AI</Text>
+                                <Pressable onPress={() => setIdentifyOpen(false)} style={styles.iconBtn}>
+                                    <Feather name="x" size={18} color="#2e4d35" />
+                                </Pressable>
+                            </View>
+
+                            {identifyImageUri ? <Image source={{ uri: identifyImageUri }} style={styles.modalPreview} /> : null}
+
+                            {identifying ? (
+                                <View style={{ marginTop: 16, alignItems: "center" }}>
+                                    <ActivityIndicator color="#2d6a4f" />
+                                    <Text style={{ marginTop: 8, color: "#2e4d35", fontWeight: "700" }}>מזהה את הצמח...</Text>
+                                </View>
+                            ) : identifiedPlant ? (
+                                <View style={{ marginTop: 14, gap: 6 }}>
+                                    <Text style={styles.identifyResultTitle}>{identifiedPlant.identified_name}</Text>
+                                    <Text style={styles.identifyResultLine}>קטגוריה: {identifiedPlant.category}</Text>
+                                    <Text style={styles.identifyResultLine}>השקיה כל {identifiedPlant.watering_interval} ימים</Text>
+                                    <Text style={styles.identifyResultLine}>שמש כל {identifiedPlant.sunlight_interval} ימים</Text>
+                                    <Text style={styles.identifyResultLine}>דיוק זיהוי: {Math.round((identifiedPlant.confidence_score || 0) * 100)}%</Text>
+
+                                    <View style={styles.modalActions}>
+                                        <Pressable onPress={startIdentifyFlow} style={styles.secondaryBtn}>
+                                            <Text style={styles.secondaryText}>נסה תמונה אחרת</Text>
+                                        </Pressable>
+                                        <Pressable
+                                            onPress={addIdentifiedPlantToMyPlants}
+                                            style={styles.primaryBtnWide}
+                                            disabled={addingIdentified}
+                                        >
+                                            {addingIdentified ? (
+                                                <ActivityIndicator color="#fff" />
+                                            ) : (
+                                                <Text style={styles.primaryText}>הוסף לצמחים שלי</Text>
+                                            )}
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            ) : null}
+                        </View>
+                    </View>
+                </Modal>
+
                 {/* Add Button */}
                 {/* Floating Actions */}
                 <View style={styles.fabWrap} pointerEvents="box-none">
@@ -446,6 +671,27 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         opacity: 0.9,
     },
+    identifyTopBtn: {
+        backgroundColor: "rgba(255,255,255,0.88)",
+        borderRadius: 999,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        borderWidth: 1,
+        borderColor: "rgba(27,67,50,0.15)",
+    },
+    identifyTopWrap: {
+        alignItems: "center",
+        marginTop: -18,
+        marginBottom: 16,
+    },
+    identifyTopBtnText: {
+        color: "#1b4332",
+        fontWeight: "900",
+        fontSize: 14,
+    },
     emptyText: {
         textAlign: "center",
         color: "#4a7856",
@@ -498,6 +744,24 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: 5,
         backgroundColor: "rgba(29,53,41,0.95)",
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 999,
+        shadowColor: "#000",
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 6,
+    },
+    deletePill: {
+        position: "absolute",
+        top: 10,
+        left: 10,
+        zIndex: 5,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        backgroundColor: "rgba(176,42,55,0.95)",
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 999,
@@ -733,6 +997,16 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "flex-end",
         gap: 10,
+    },
+    identifyResultTitle: {
+        fontSize: 21,
+        color: "#1b4332",
+        fontWeight: "900",
+    },
+    identifyResultLine: {
+        color: "#2e4d35",
+        fontWeight: "700",
+        fontSize: 14,
     },
     secondaryBtn: {
         height: 42,

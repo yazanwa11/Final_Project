@@ -209,3 +209,88 @@ class InferenceService:
             "model_version": "heuristic_v1",
             "raw_topk": topk,
         }
+
+    @classmethod
+    def identify_plant(cls, image_path: str, language: str = "he") -> Dict[str, Any]:
+        api_key = getattr(settings, "GEMINI_API_KEY", "")
+        model = getattr(settings, "GEMINI_VISION_MODEL", "gemini-2.5-flash")
+
+        if not api_key:
+            raise ValueError("Missing GEMINI_API_KEY")
+
+        with open(image_path, "rb") as file_obj:
+            encoded = base64.b64encode(file_obj.read()).decode("utf-8")
+
+        language_instruction = "Return plant_name and category in Hebrew."
+        if language == "en":
+            language_instruction = "Return plant_name and category in English."
+
+        prompt = (
+            "You are a plant identification assistant. "
+            f"{language_instruction} "
+            "Analyze the image and return ONLY valid JSON with fields: "
+            "plant_name, category, confidence_score. "
+            "Rules: confidence_score must be between 0 and 1. "
+            "plant_name should be the common name if possible, otherwise the best likely plant name. "
+            "category should be one of: Herb, Vegetable, Flower, Tree, Indoor."
+        )
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        response = requests.post(
+            url,
+            params={"key": api_key},
+            json={
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": prompt},
+                            {
+                                "inline_data": {
+                                    "mime_type": "image/jpeg",
+                                    "data": encoded,
+                                }
+                            },
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "topP": 0.9,
+                    "maxOutputTokens": 1024,
+                },
+            },
+            timeout=35,
+        )
+
+        if response.status_code != 200:
+            raise ValueError(f"Gemini identify failed: {response.status_code}")
+
+        payload = response.json()
+        candidates = payload.get("candidates") or []
+        if not candidates:
+            raise ValueError("No Gemini identify candidates")
+
+        parts = (candidates[0].get("content") or {}).get("parts") or []
+        text = "\n".join(str(part.get("text") or "") for part in parts if part.get("text")).strip()
+        parsed = cls._extract_json(text)
+        if not parsed:
+            raise ValueError("Invalid Gemini identify JSON")
+
+        plant_name = str(parsed.get("plant_name") or "").strip()
+        if not plant_name:
+            raise ValueError("Gemini did not return plant_name")
+
+        category = str(parsed.get("category") or "Indoor").strip().title()
+        allowed = {"Herb", "Vegetable", "Flower", "Tree", "Indoor"}
+        if category not in allowed:
+            category = "Indoor"
+
+        confidence_score = float(parsed.get("confidence_score") or 0.65)
+        confidence_score = max(0.0, min(1.0, confidence_score))
+
+        return {
+            "plant_name": plant_name,
+            "category": category,
+            "confidence_score": confidence_score,
+            "model_version": cls.MODEL_VERSION,
+        }

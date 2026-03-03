@@ -22,7 +22,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import viewsets, permissions
 from .serializers import PlantSerializer
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
@@ -381,6 +381,172 @@ def is_provider_placeholder(value: str | None) -> bool:
     return "upgrade plans" in text or "subscription-api-pricing" in text
 
 
+def resolve_plant_metadata_from_name(plant_name: str) -> dict:
+    token = getattr(settings, "PERENUAL_API_KEY", None)
+    cleaned_name = (plant_name or "").strip()
+
+    fallback_item = (local_plant_suggestions(cleaned_name) or [
+        {
+            "name": cleaned_name or "Unknown Plant",
+            "category": "Indoor",
+            "watering_interval": 4,
+            "sunlight_interval": 2,
+            "image": None,
+        }
+    ])[0]
+
+    if not token:
+        return {
+            "name": fallback_item.get("name") or cleaned_name,
+            "category": fallback_item.get("category") or "Indoor",
+            "watering_interval": fallback_item.get("watering_interval") or 4,
+            "sunlight_interval": fallback_item.get("sunlight_interval") or 2,
+            "image": fallback_item.get("image"),
+        }
+
+    try:
+        search_url = "https://perenual.com/api/species-list"
+        sr = requests.get(search_url, params={"key": token, "q": cleaned_name, "page": 1}, timeout=12)
+        if sr.status_code != 200:
+            raise ValueError("species list failed")
+
+        search_payload = sr.json()
+        items = search_payload.get("data") or []
+        if not items:
+            raise ValueError("no species list results")
+
+        first = items[0]
+        plant_id = first.get("id")
+        if not plant_id:
+            raise ValueError("missing plant id")
+
+        detail_url = f"https://perenual.com/api/species/details/{plant_id}"
+        dr = requests.get(detail_url, params={"key": token}, timeout=12)
+        if dr.status_code != 200:
+            raise ValueError("species details failed")
+
+        detail_payload = dr.json()
+        d = detail_payload if isinstance(detail_payload, dict) else {}
+
+        name = d.get("common_name") or first.get("common_name") or cleaned_name
+        default_image = d.get("default_image") or first.get("default_image") or {}
+        image_url = default_image.get("original_url") or default_image.get("regular_url")
+
+        water_text = None
+        benchmark = d.get("watering_general_benchmark") or {}
+        if isinstance(benchmark, dict):
+            water_text = benchmark.get("value")
+        if not water_text:
+            water_text = d.get("watering")
+        if is_provider_placeholder(water_text):
+            water_text = None
+
+        sunlight_value = d.get("sunlight")
+        if isinstance(sunlight_value, list):
+            sunlight_text = " ".join(str(item) for item in sunlight_value)
+        else:
+            sunlight_text = str(sunlight_value or "")
+        if is_provider_placeholder(sunlight_text):
+            sunlight_text = ""
+
+        growth = d.get("growth_rate")
+        humidity = None
+        light = None
+        if isinstance(growth, dict):
+            humidity = to_int(growth.get("atmospheric_humidity"))
+            light = to_int(growth.get("light"))
+
+        watering_interval = (
+            parse_days_from_text(water_text, default_value=watering_days_from_humidity(humidity))
+            if water_text
+            else watering_days_from_humidity(humidity)
+        )
+        sunlight_interval = (
+            parse_days_from_text(sunlight_text, default_value=sunlight_days_from_light(light))
+            if sunlight_text
+            else sunlight_days_from_light(light)
+        )
+
+        category = fallback_item.get("category") or "Indoor"
+        cycle = str(d.get("cycle") or "").lower()
+        if "perennial" in cycle or "annual" in cycle or "biennial" in cycle:
+            category = "Flower"
+
+        return {
+            "name": name,
+            "category": category,
+            "watering_interval": watering_interval,
+            "sunlight_interval": sunlight_interval,
+            "image": image_url,
+        }
+    except Exception:
+        return {
+            "name": fallback_item.get("name") or cleaned_name,
+            "category": fallback_item.get("category") or "Indoor",
+            "watering_interval": fallback_item.get("watering_interval") or 4,
+            "sunlight_interval": fallback_item.get("sunlight_interval") or 2,
+            "image": fallback_item.get("image"),
+        }
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def identify_plant_from_image(request):
+    image_file = request.FILES.get("image")
+    language = request.data.get("language", "he")
+
+    if not image_file:
+        return Response({"detail": "image is required"}, status=400)
+
+    prediction = Prediction.objects.create(
+        user=request.user,
+        image=image_file,
+        status="pending",
+    )
+
+    try:
+        identified = InferenceService.identify_plant(prediction.image.path, language=language)
+        metadata = resolve_plant_metadata_from_name(identified["plant_name"])
+
+        prediction.status = "done"
+        prediction.model_version = identified.get("model_version") or prediction.model_version
+        prediction.confidence_score = identified.get("confidence_score")
+        prediction.treatment_recommendation = f"Identified plant: {metadata.get('name')}"
+        prediction.urgency_level = "low"
+        prediction.raw_topk = {metadata.get("name"): identified.get("confidence_score")}
+        prediction.completed_at = timezone.now()
+        prediction.failure_reason = ""
+        prediction.save(
+            update_fields=[
+                "status",
+                "model_version",
+                "confidence_score",
+                "treatment_recommendation",
+                "urgency_level",
+                "raw_topk",
+                "completed_at",
+                "failure_reason",
+            ]
+        )
+
+        return Response({
+            "identified_name": metadata.get("name"),
+            "category": metadata.get("category"),
+            "confidence_score": identified.get("confidence_score"),
+            "watering_interval": metadata.get("watering_interval"),
+            "sunlight_interval": metadata.get("sunlight_interval"),
+            "image": metadata.get("image"),
+            "prediction_id": str(prediction.id),
+        }, status=201)
+    except Exception as exc:
+        prediction.status = "failed"
+        prediction.failure_reason = str(exc)
+        prediction.completed_at = timezone.now()
+        prediction.save(update_fields=["status", "failure_reason", "completed_at"])
+        return Response({"detail": "Failed to identify plant from image."}, status=400)
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def plant_suggestions(request):
@@ -479,7 +645,7 @@ def add_suggested_plant(request):
     plant = Plant.objects.create(
         user=request.user,
         name=name,
-        category=data.get("category", "General"),
+        category=data.get("category", "Indoor"),
         watering_interval=data.get("watering_interval") or 3,
         sunlight_interval=data.get("sunlight_interval") or 2,
         planting_date=timezone.now().date(),

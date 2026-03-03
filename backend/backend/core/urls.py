@@ -74,6 +74,7 @@ urlpatterns = [
     # -------------------------
     path("plants/suggestions/", views.plant_suggestions),
     path("plants/add-suggested/", views.add_suggested_plant),
+    path("plants/identify/", views.identify_plant_from_image),
 
     # -------------------------
     # Notifications
