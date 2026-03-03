@@ -1,9 +1,12 @@
 from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
-from .models import Plant, Notification, ExpertPost, ExpertInquiry, Prediction, DiseaseProfile, PlantHealthSnapshot, CommunityPost, CommunityPostLike
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .models import Plant, Notification, ExpertPost, ExpertInquiry, Prediction, DiseaseProfile, PlantHealthSnapshot, CommunityPost, CommunityPostLike, Profile
 from .serializers import (
     UserSerializer,
+    RoleAwareTokenObtainPairSerializer,
+    AdminUserSerializer,
     PlantSerializer,
     NotificationSerializer,
     ExpertPostSerializer,
@@ -30,7 +33,7 @@ from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .permissions import IsExpert
+from .permissions import IsExpert, IsAdmin
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .inference import InferenceService, DEFAULT_DISEASES
 from .health_scoring import compute_and_store_plant_health
@@ -42,6 +45,10 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = RoleAwareTokenObtainPairSerializer
 
 
 
@@ -56,8 +63,10 @@ class UserMeView(APIView):
             avatar = request.build_absolute_uri(user.profile.avatar.url)
 
         role = "user"
+        expert_approval_status = "approved"
         if hasattr(user, "profile") and getattr(user.profile, "role", None):
             role = user.profile.role
+            expert_approval_status = getattr(user.profile, "expert_approval_status", "approved")
 
         return Response({
             "id": user.id,
@@ -65,6 +74,7 @@ class UserMeView(APIView):
             "email": user.email,
             "avatar": avatar,
             "role": role,
+            "expert_approval_status": expert_approval_status,
         })
 
 
@@ -107,6 +117,114 @@ def update_user(request):
         "avatar": request.build_absolute_uri(user.profile.avatar.url)
         if user.profile.avatar else None,
     }, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def admin_users_list(request):
+    users = User.objects.select_related("profile").prefetch_related("plants").all().order_by("-date_joined")
+    for user in users:
+        Profile.objects.get_or_create(user=user)
+    serializer = AdminUserSerializer(users, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def admin_pending_experts(request):
+    users = User.objects.select_related("profile").prefetch_related("plants").filter(
+        profile__role="expert",
+        profile__expert_approval_status="pending",
+    ).order_by("date_joined")
+    serializer = AdminUserSerializer(users, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def admin_user_update(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    profile, _ = Profile.objects.get_or_create(user=user)
+
+    username = request.data.get("username")
+    email = request.data.get("email")
+    role = request.data.get("role")
+    approval_status = request.data.get("expert_approval_status")
+    is_active = request.data.get("is_active")
+
+    if username:
+        user.username = username
+    if email is not None:
+        user.email = email
+
+    if role in {"user", "expert", "admin"}:
+        profile.role = role
+        if role in {"user", "admin"}:
+            profile.expert_approval_status = "approved"
+        elif role == "expert" and profile.expert_approval_status not in {"approved", "rejected"}:
+            profile.expert_approval_status = "pending"
+
+    if approval_status in {"pending", "approved", "rejected"}:
+        profile.expert_approval_status = approval_status
+
+    if is_active is not None:
+        if str(is_active).lower() in {"true", "1"}:
+            user.is_active = True
+        elif str(is_active).lower() in {"false", "0"}:
+            if user.id == request.user.id:
+                return Response({"detail": "You cannot deactivate your own account."}, status=status.HTTP_400_BAD_REQUEST)
+            user.is_active = False
+
+    user.save()
+    profile.save()
+
+    serializer = AdminUserSerializer(user)
+    return Response(serializer.data)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def admin_user_delete(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if user.id == request.user.id:
+        return Response({"detail": "You cannot delete your own account."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if user.username == "admin":
+        return Response({"detail": "Default admin account cannot be deleted."}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def admin_review_expert(request, user_id):
+    action = str(request.data.get("action", "")).lower().strip()
+    if action not in {"approve", "reject"}:
+        return Response({"detail": "Action must be approve or reject."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    profile, _ = Profile.objects.get_or_create(user=user)
+    if profile.role != "expert":
+        return Response({"detail": "User is not an expert account."}, status=status.HTTP_400_BAD_REQUEST)
+
+    profile.expert_approval_status = "approved" if action == "approve" else "rejected"
+    profile.save(update_fields=["expert_approval_status"])
+
+    serializer = AdminUserSerializer(user)
+    return Response(serializer.data)
 
 
 

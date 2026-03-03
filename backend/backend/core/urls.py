@@ -1,11 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from django.conf import settings
 from django.conf.urls.static import static
 
-from .views import RegisterView, UserMeView, PlantViewSet
+from .views import RegisterView, UserMeView, PlantViewSet, CustomTokenObtainPairView
 from . import views
 from . import weather_views
 from . import assistant_views
@@ -21,6 +21,11 @@ from .views import (
     ask_expert,                    # ✅ NEW
     expert_inbox,                  # ✅ NEW
     answer_inquiry,                # ✅ NEW
+    admin_users_list,
+    admin_pending_experts,
+    admin_user_update,
+    admin_user_delete,
+    admin_review_expert,
     list_community_posts,
     create_community_post,
     update_community_post,
@@ -42,10 +47,19 @@ urlpatterns = [
     # Auth / Users
     # -------------------------
     path("users/register/", RegisterView.as_view(), name="register"),
-    path("users/login/", TokenObtainPairView.as_view(), name="login"),
+    path("users/login/", CustomTokenObtainPairView.as_view(), name="login"),
     path("users/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("users/me/", UserMeView.as_view(), name="user-me"),
     path("users/update/", views.update_user, name="update_user"),
+
+    # -------------------------
+    # Admin Dashboard
+    # -------------------------
+    path("admin/users/", admin_users_list),
+    path("admin/users/<int:user_id>/update/", admin_user_update),
+    path("admin/users/<int:user_id>/delete/", admin_user_delete),
+    path("admin/experts/pending/", admin_pending_experts),
+    path("admin/experts/<int:user_id>/review/", admin_review_expert),
 
     # -------------------------
     # Plant Logs / Reminders

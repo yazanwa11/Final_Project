@@ -1,21 +1,56 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Plant ,CareLog,Notification,ExpertPost, CommunityPost
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import Plant ,CareLog,Notification,ExpertPost, CommunityPost, Profile
 
 
 # --- Users ---
 class UserSerializer(serializers.ModelSerializer):
+    role = serializers.ChoiceField(choices=["user", "expert"], required=False, default="user", write_only=True)
+
     class Meta:
         model = User
-        fields = ["id", "username", "email", "password"]
+        fields = ["id", "username", "email", "password", "role"]
         extra_kwargs = {"password": {"write_only": True}}
 
     def create(self, validated_data):
-        return User.objects.create_user(
+        selected_role = validated_data.pop("role", "user")
+        user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
             password=validated_data["password"]
         )
+
+        profile, _ = Profile.objects.get_or_create(user=user)
+        profile.role = selected_role
+        profile.expert_approval_status = "pending" if selected_role == "expert" else "approved"
+        profile.save(update_fields=["role", "expert_approval_status"])
+
+        return user
+
+
+class RoleAwareTokenObtainPairSerializer(TokenObtainPairSerializer):
+    role = serializers.ChoiceField(choices=["admin", "expert", "user"], write_only=True)
+
+    def validate(self, attrs):
+        selected_role = attrs.get("role")
+        data = super().validate(attrs)
+
+        profile, _ = Profile.objects.get_or_create(user=self.user)
+        account_role = profile.role or "user"
+
+        if selected_role != account_role:
+            raise serializers.ValidationError({"role": "Selected login role does not match this account."})
+
+        if selected_role == "expert" and profile.expert_approval_status != "approved":
+            if profile.expert_approval_status == "pending":
+                raise serializers.ValidationError({"detail": "Your expert account is pending admin approval."})
+            raise serializers.ValidationError({"detail": "Your expert account was rejected by admin."})
+
+        data["role"] = account_role
+        data["expert_approval_status"] = profile.expert_approval_status
+        data["username"] = self.user.username
+        return data
 
 # --- Plants ---
 
@@ -99,17 +134,37 @@ class PlantSerializer(serializers.ModelSerializer):
 
 class MeSerializer(serializers.ModelSerializer):
     role = serializers.CharField(source="profile.role", read_only=True)
+    expert_approval_status = serializers.CharField(source="profile.expert_approval_status", read_only=True)
     avatar = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "role", "avatar"]
+        fields = ["id", "username", "email", "role", "expert_approval_status", "avatar"]
 
     def get_avatar(self, obj):
         request = self.context.get("request")
         if hasattr(obj, "profile") and obj.profile.avatar and hasattr(obj.profile.avatar, "url"):
             return request.build_absolute_uri(obj.profile.avatar.url) if request else obj.profile.avatar.url
         return None
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    role = serializers.CharField(source="profile.role", read_only=True)
+    expert_approval_status = serializers.CharField(source="profile.expert_approval_status", read_only=True)
+    plants_count = serializers.IntegerField(source="plants.count", read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "is_active",
+            "date_joined",
+            "role",
+            "expert_approval_status",
+            "plants_count",
+        ]
 
 
 

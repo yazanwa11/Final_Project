@@ -68,6 +68,15 @@ class Profile(models.Model):
     ("admin", "Admin"),
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="user")
+    expert_approval_status = models.CharField(
+        max_length=20,
+        choices=[
+            ("pending", "Pending"),
+            ("approved", "Approved"),
+            ("rejected", "Rejected"),
+        ],
+        default="approved",
+    )
 
 
     def __str__(self):

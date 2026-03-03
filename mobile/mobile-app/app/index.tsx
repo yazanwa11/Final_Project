@@ -20,6 +20,7 @@ export default function LoginScreen() {
   const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [selectedRole, setSelectedRole] = useState<"admin" | "expert" | "user">("user");
   const [errorMsg, setErrorMsg] = useState("");
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -48,7 +49,7 @@ export default function LoginScreen() {
       const response = await fetch("http://10.0.2.2:8000/api/users/login/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, role: selectedRole }),
       });
 
       const data = await response.json();
@@ -56,9 +57,20 @@ export default function LoginScreen() {
       if (response.ok) {
         await AsyncStorage.setItem("access", data.access);
         await AsyncStorage.setItem("refresh", data.refresh);
-        router.push("/(tabs)/HomeScreen");
+        await AsyncStorage.setItem("role", data.role || selectedRole);
+
+        if ((data.role || selectedRole) === "admin") {
+          router.push("/AdminDashboardScreen");
+        } else {
+          router.push("/(tabs)/HomeScreen");
+        }
       } else {
-        showError(t('auth.incorrectCredentials'));
+        showError(
+          data?.detail
+            || data?.role?.[0]
+            || data?.non_field_errors?.[0]
+            || t('auth.incorrectCredentials')
+        );
       }
     } catch {
       showError(t('auth.networkErrorLogin'));
@@ -85,6 +97,41 @@ export default function LoginScreen() {
 
         <Text style={styles.title}>{t('auth.welcomeBack')}</Text>
         <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
+
+        <View style={{ width: "88%", marginBottom: 14 }}>
+          <Text style={{ color: "#1f3b2e", fontWeight: "700", marginBottom: 8 }}>Login as</Text>
+          <View
+            style={{
+              flexDirection: "row",
+              backgroundColor: "#f0f7f2",
+              borderRadius: 14,
+              padding: 4,
+              borderWidth: 1,
+              borderColor: "#d3ead8",
+            }}
+          >
+            {(["admin", "expert", "user"] as const).map((role) => {
+              const active = selectedRole === role;
+              return (
+                <TouchableOpacity
+                  key={role}
+                  onPress={() => setSelectedRole(role)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 9,
+                    borderRadius: 10,
+                    backgroundColor: active ? "#52b788" : "transparent",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: active ? "#fff" : "#3f6b50", fontWeight: "700", textTransform: "capitalize" }}>
+                    {role}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
         {/* Animated Error Box */}
         {errorMsg !== "" && (

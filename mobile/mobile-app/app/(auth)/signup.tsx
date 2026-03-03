@@ -22,6 +22,8 @@ export default function SignupScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [selectedRole, setSelectedRole] = useState<"user" | "expert">("user");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const [successVisible, setSuccessVisible] = useState(false);
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -49,10 +51,16 @@ export default function SignupScreen() {
           username: name,
           email,
           password,
+          role: selectedRole,
         }),
       });
 
       if (response.ok) {
+        setSuccessMessage(
+          selectedRole === "expert"
+            ? "Expert account created. Wait for admin approval before login."
+            : "Your account was created successfully."
+        );
         showSuccess();
       } else {
         alert(t("auth.signupFailed"));
@@ -80,6 +88,41 @@ export default function SignupScreen() {
 
         <Text style={styles.title}>{t("auth.createAccount")} 🌱</Text>
         <Text style={styles.subtitle}>{t("auth.signupSubtitle")}</Text>
+
+        <View style={{ width: "88%", marginBottom: 14 }}>
+          <Text style={{ color: "#1f3b2e", fontWeight: "700", marginBottom: 8 }}>Sign up as</Text>
+          <View
+            style={{
+              flexDirection: "row",
+              backgroundColor: "#f0f7f2",
+              borderRadius: 14,
+              padding: 4,
+              borderWidth: 1,
+              borderColor: "#d3ead8",
+            }}
+          >
+            {(["user", "expert"] as const).map((role) => {
+              const active = selectedRole === role;
+              return (
+                <TouchableOpacity
+                  key={role}
+                  onPress={() => setSelectedRole(role)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 9,
+                    borderRadius: 10,
+                    backgroundColor: active ? "#52b788" : "transparent",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: active ? "#fff" : "#3f6b50", fontWeight: "700", textTransform: "capitalize" }}>
+                    {role}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
         {/* INPUTS */}
         <View style={styles.inputContainer}>
@@ -160,7 +203,7 @@ export default function SignupScreen() {
               <Feather name="check-circle" size={60} color="#4CAF50" />
               <Text style={styles.modalTitle}>{t("auth.welcomeToGreenBuddy")} 🌿</Text>
               <Text style={styles.modalMessage}>
-                {t("auth.accountCreatedSuccess")}
+                {successMessage || t("auth.accountCreatedSuccess")}
               </Text>
 
               <TouchableOpacity
