@@ -53,6 +53,16 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="CommunityFeedScreen"
+        options={{
+          title: "Feed",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="image" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="HomeScreen"
         options={{
           title: t('tabs.home'),
@@ -65,6 +75,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="AddPlantScreen"
         options={{
+          href: null,
           title: t('tabs.add'),
           tabBarIcon: ({ color, size }) => (
             <Feather name="plus-circle" size={size + 2} color={color} />

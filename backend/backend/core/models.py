@@ -145,6 +145,35 @@ class ExpertPost(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.author.username})"    
+
+
+class CommunityPost(models.Model):
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="community_posts")
+    text = models.TextField(max_length=1200)
+    image = models.ImageField(upload_to="posts/", blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Post {self.id} by {self.author.username}"
+
+
+class CommunityPostLike(models.Model):
+    post = models.ForeignKey(CommunityPost, on_delete=models.CASCADE, related_name="likes")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="community_post_likes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["post", "user"], name="unique_community_post_like"),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} likes {self.post_id}"
     
 
 class ExpertInquiry(models.Model):

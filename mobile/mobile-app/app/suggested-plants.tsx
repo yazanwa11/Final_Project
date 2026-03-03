@@ -9,6 +9,7 @@ import {
     Animated,
     Modal,
     Pressable,
+    TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -32,6 +33,8 @@ export default function SuggestedPlantsScreen() {
     const { t } = useTranslation();
     const [plants, setPlants] = useState<SuggestedPlant[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searching, setSearching] = useState(false);
+    const [query, setQuery] = useState("");
 
     const [selected, setSelected] = useState<SuggestedPlant | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -40,10 +43,24 @@ export default function SuggestedPlantsScreen() {
     // Duplicate modal
     const [dupVisible, setDupVisible] = useState(false);
     const dupScale = useRef(new Animated.Value(0.85)).current;
+    const firstSearchRender = useRef(true);
 
     useEffect(() => {
-        fetchSuggestions();
+        fetchSuggestions("");
     }, []);
+
+    useEffect(() => {
+        if (firstSearchRender.current) {
+            firstSearchRender.current = false;
+            return;
+        }
+
+        const id = setTimeout(() => {
+            fetchSuggestions(query, true);
+        }, 350);
+
+        return () => clearTimeout(id);
+    }, [query]);
 
     const showDuplicateModal = () => {
         setDupVisible(true);
@@ -88,9 +105,18 @@ export default function SuggestedPlantsScreen() {
         return res;
     }
 
-    const fetchSuggestions = async () => {
+    const fetchSuggestions = async (searchValue: string = "", isSearch: boolean = false) => {
         try {
-            const response = await fetchWithAuth("http://10.0.2.2:8000/api/plants/suggestions/", {
+            if (isSearch) {
+                setSearching(true);
+            }
+
+            const q = searchValue.trim();
+            const url = q
+                ? `http://10.0.2.2:8000/api/plants/suggestions/?q=${encodeURIComponent(q)}`
+                : "http://10.0.2.2:8000/api/plants/suggestions/";
+
+            const response = await fetchWithAuth(url, {
                 headers: { Accept: "application/json" },
             });
 
@@ -112,6 +138,7 @@ export default function SuggestedPlantsScreen() {
             console.error("Failed to fetch suggestions", err);
             setPlants([]);
         } finally {
+            setSearching(false);
             setLoading(false);
         }
     };
@@ -162,6 +189,32 @@ export default function SuggestedPlantsScreen() {
                 <View style={styles.container}>
                     <Text style={styles.title}>{t('suggestedPlants.title')}</Text>
                     <Text style={styles.subtitle}>{t('suggestedPlants.subtitle')}</Text>
+
+                    <View style={styles.searchBar}>
+                        <Feather name="search" size={16} color="#2d6a4f" />
+                        <TextInput
+                            value={query}
+                            onChangeText={setQuery}
+                            placeholder={t("explore.searchPlaceholder")}
+                            placeholderTextColor="#6f907e"
+                            style={styles.searchInput}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            returnKeyType="search"
+                        />
+
+                        {searching ? (
+                            <ActivityIndicator size="small" color="#2d6a4f" />
+                        ) : query.length > 0 ? (
+                            <Pressable onPress={() => setQuery("")}>
+                                <Feather name="x" size={16} color="#2d6a4f" />
+                            </Pressable>
+                        ) : null}
+                    </View>
+
+                    {!!query.trim() && (
+                        <Text style={styles.searchMeta}>{t('explore.plantMatches')}: {plants.length}</Text>
+                    )}
 
                     <FlatList
                         data={plants}
@@ -301,6 +354,31 @@ const styles = StyleSheet.create({
 
     title: { fontSize: 26, fontWeight: "900", color: "#1b4332" },
     subtitle: { marginTop: 6, fontSize: 14, color: "#3a6b52", marginBottom: 14 },
+
+    searchBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(255,255,255,0.94)",
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "rgba(45,106,79,0.18)",
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        marginBottom: 10,
+    },
+    searchInput: {
+        flex: 1,
+        marginLeft: 8,
+        color: "#1b4332",
+        fontSize: 14,
+        fontWeight: "600",
+    },
+    searchMeta: {
+        marginBottom: 8,
+        color: "#4a7856",
+        fontSize: 12,
+        fontWeight: "700",
+    },
 
     card: {
         flexDirection: "row",

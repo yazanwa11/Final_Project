@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Plant ,CareLog,Notification,ExpertPost
+from .models import Plant ,CareLog,Notification,ExpertPost, CommunityPost
 
 
 # --- Users ---
@@ -144,6 +144,63 @@ class ExpertPostSerializer(serializers.ModelSerializer):
         if hasattr(obj.author, "profile") and obj.author.profile.avatar and hasattr(obj.author.profile.avatar, "url"):
             return request.build_absolute_uri(obj.author.profile.avatar.url) if request else obj.author.profile.avatar.url
         return None
+
+
+class CommunityPostSerializer(serializers.ModelSerializer):
+    author_username = serializers.CharField(source="author.username", read_only=True)
+    author_avatar = serializers.SerializerMethodField(read_only=True)
+    image_url = serializers.SerializerMethodField(read_only=True)
+    likes_count = serializers.SerializerMethodField(read_only=True)
+    is_liked = serializers.SerializerMethodField(read_only=True)
+    can_edit = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = CommunityPost
+        fields = [
+            "id",
+            "text",
+            "image",
+            "image_url",
+            "created_at",
+            "updated_at",
+            "author_username",
+            "author_avatar",
+            "likes_count",
+            "is_liked",
+            "can_edit",
+        ]
+        extra_kwargs = {
+            "image": {"write_only": True, "required": False, "allow_null": True}
+        }
+
+    def get_author_avatar(self, obj):
+        request = self.context.get("request")
+        if hasattr(obj.author, "profile") and obj.author.profile.avatar and hasattr(obj.author.profile.avatar, "url"):
+            return request.build_absolute_uri(obj.author.profile.avatar.url) if request else obj.author.profile.avatar.url
+        return None
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image and hasattr(obj.image, "url"):
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None
+
+    def get_likes_count(self, obj):
+        return obj.likes.count()
+
+    def get_is_liked(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            return False
+        return obj.likes.filter(user=user).exists()
+
+    def get_can_edit(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            return False
+        return obj.author_id == user.id
     
 from .models import ExpertInquiry
 from .models import Prediction, WeatherSnapshot, SmartReminderEvent, PlantHealthSnapshot

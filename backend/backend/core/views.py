@@ -1,13 +1,14 @@
 from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
-from .models import Plant, Notification, ExpertPost, ExpertInquiry, Prediction, DiseaseProfile, PlantHealthSnapshot
+from .models import Plant, Notification, ExpertPost, ExpertInquiry, Prediction, DiseaseProfile, PlantHealthSnapshot, CommunityPost, CommunityPostLike
 from .serializers import (
     UserSerializer,
     PlantSerializer,
     NotificationSerializer,
     ExpertPostSerializer,
     ExpertInquirySerializer,
+    CommunityPostSerializer,
     PredictionCreateSerializer,
     PredictionSerializer,
     PlantHealthSnapshotSerializer,
@@ -649,4 +650,94 @@ def list_expert_posts(request):
         )
 
     return Response(ExpertPostSerializer(posts, many=True, context={"request": request}).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_community_posts(request):
+    posts = CommunityPost.objects.select_related("author", "author__profile").prefetch_related("likes")
+    return Response(CommunityPostSerializer(posts, many=True, context={"request": request}).data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_community_post(request):
+    text = (request.data.get("text") or "").strip()
+    image = request.FILES.get("image")
+
+    if not text:
+        return Response({"detail": "text is required"}, status=400)
+
+    post = CommunityPost.objects.create(
+        author=request.user,
+        text=text,
+        image=image,
+    )
+
+    return Response(CommunityPostSerializer(post, context={"request": request}).data, status=201)
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def update_community_post(request, post_id: int):
+    try:
+        post = CommunityPost.objects.get(id=post_id)
+    except CommunityPost.DoesNotExist:
+        return Response({"detail": "Not found"}, status=404)
+
+    if post.author_id != request.user.id:
+        return Response({"detail": "Forbidden"}, status=403)
+
+    text = request.data.get("text")
+    if text is not None:
+        trimmed = str(text).strip()
+        if not trimmed:
+            return Response({"detail": "text is required"}, status=400)
+        post.text = trimmed
+
+    if "remove_image" in request.data and str(request.data.get("remove_image")).lower() in ["1", "true", "yes"]:
+        if post.image:
+            post.image.delete(save=False)
+        post.image = None
+
+    if "image" in request.FILES:
+        post.image = request.FILES.get("image")
+
+    post.save()
+    return Response(CommunityPostSerializer(post, context={"request": request}).data)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_community_post(request, post_id: int):
+    try:
+        post = CommunityPost.objects.get(id=post_id)
+    except CommunityPost.DoesNotExist:
+        return Response({"detail": "Not found"}, status=404)
+
+    if post.author_id != request.user.id:
+        return Response({"detail": "Forbidden"}, status=403)
+
+    post.delete()
+    return Response({"status": "deleted"})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def toggle_community_post_like(request, post_id: int):
+    try:
+        post = CommunityPost.objects.get(id=post_id)
+    except CommunityPost.DoesNotExist:
+        return Response({"detail": "Not found"}, status=404)
+
+    existing = CommunityPostLike.objects.filter(post=post, user=request.user).first()
+    if existing:
+        existing.delete()
+        liked = False
+    else:
+        CommunityPostLike.objects.create(post=post, user=request.user)
+        liked = True
+
+    likes_count = CommunityPostLike.objects.filter(post=post).count()
+    return Response({"liked": liked, "likes_count": likes_count})
 

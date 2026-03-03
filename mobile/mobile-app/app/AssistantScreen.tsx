@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  I18nManager,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +25,7 @@ type ChatItem = {
 
 export default function AssistantScreen() {
   const { t, i18n } = useTranslation();
+  const isRtl = i18n.language === "he" || I18nManager.isRTL;
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [items, setItems] = useState<ChatItem[]>([]);
   const [text, setText] = useState("");
@@ -115,7 +117,13 @@ export default function AssistantScreen() {
             }
             renderItem={({ item }) => (
               <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}>
-                <Text style={[styles.bubbleText, item.role === "user" ? styles.userText : styles.assistantText]}>
+                <Text
+                  style={[
+                    styles.bubbleText,
+                    item.role === "user" ? styles.userText : styles.assistantText,
+                    isRtl && { textAlign: "right", writingDirection: "rtl" },
+                  ]}
+                >
                   {item.content}
                 </Text>
               </View>
@@ -126,10 +134,14 @@ export default function AssistantScreen() {
             <TextInput
               value={text}
               onChangeText={setText}
-              style={styles.input}
+              style={[styles.input, isRtl && styles.inputRtl]}
               placeholder={t('assistant.placeholder')}
               placeholderTextColor="#7aa68a"
               multiline
+              autoCorrect
+              autoCapitalize="sentences"
+              textAlign={isRtl ? "right" : "left"}
+              //writingDirection={isRtl ? "rtl" : "ltr"}
             />
             <Pressable onPress={send} style={styles.sendBtn} disabled={sending}>
               {sending ? <ActivityIndicator color="#fff" /> : <Feather name="send" size={16} color="#fff" />}
@@ -215,6 +227,9 @@ const styles = StyleSheet.create({
     color: "#1b4332",
     fontSize: 16,
     fontWeight: "600",
+  },
+  inputRtl: {
+    fontWeight: "500",
   },
   sendBtn: {
     height: 52,

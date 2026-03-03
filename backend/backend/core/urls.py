@@ -21,6 +21,11 @@ from .views import (
     ask_expert,                    # ✅ NEW
     expert_inbox,                  # ✅ NEW
     answer_inquiry,                # ✅ NEW
+    list_community_posts,
+    create_community_post,
+    update_community_post,
+    delete_community_post,
+    toggle_community_post_like,
     create_prediction,
     prediction_detail,
     prediction_list,
@@ -75,6 +80,15 @@ urlpatterns = [
     path("explore/ask/", ask_expert),  # user creates inquiry
     path("explore/inbox/", expert_inbox),  # experts see open inquiries
     path("explore/inquiries/<int:inquiry_id>/answer/", answer_inquiry),  # expert answers
+
+    # -------------------------
+    # Community Feed (all users)
+    # -------------------------
+    path("feed/posts/", list_community_posts),
+    path("feed/posts/create/", create_community_post),
+    path("feed/posts/<int:post_id>/update/", update_community_post),
+    path("feed/posts/<int:post_id>/delete/", delete_community_post),
+    path("feed/posts/<int:post_id>/toggle-like/", toggle_community_post_like),
 
     # -------------------------
     # Plants CRUD (ViewSet)

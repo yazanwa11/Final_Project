@@ -6,6 +6,8 @@ from .models import (
 	Reminder,
 	Notification,
 	ExpertPost,
+	CommunityPost,
+	CommunityPostLike,
 	ExpertInquiry,
 	DiseaseProfile,
 	Prediction,
@@ -25,6 +27,8 @@ admin.site.register(CareLog)
 admin.site.register(Reminder)
 admin.site.register(Notification)
 admin.site.register(ExpertPost)
+admin.site.register(CommunityPost)
+admin.site.register(CommunityPostLike)
 admin.site.register(ExpertInquiry)
 admin.site.register(DiseaseProfile)
 admin.site.register(Prediction)
