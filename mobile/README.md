@@ -1,50 +1,97 @@
-# Welcome to your Expo app 👋
+# Final Project
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Plant care platform with three parts:
 
-## Get started
+- Backend API: Django + Django REST Framework + Celery
+- Web frontend: React + Vite
+- Mobile app: Expo React Native (`mobile/mobile-app`)
 
-1. Install dependencies
+## Project Structure
 
-   ```bash
-   npm install
-   ```
+- `backend/backend/` - Django project (`manage.py`, `config`, `core`)
+- `frontend/` - React web app
+- `mobile/mobile-app/` - Main Expo mobile app
 
-2. Start the app
+## Prerequisites
 
-   ```bash
-   npx expo start
-   ```
+Install these first:
 
-In the output, you'll find options to open the app in a
+- Python 3.11+
+- Node.js 18+
+- npm
+- Android Studio + Android Emulator (for mobile simulator)
+- (Optional) Redis, if you want to run Celery workers locally
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 1) Run the Backend (Django)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+From the workspace root:
 
 ```bash
-npm run reset-project
+cd Final_Project/backend/backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Backend URL:
 
-## Learn more
+- `http://127.0.0.1:8000`
 
-To learn more about developing your project with Expo, look at the following resources:
+### Optional: Run Celery
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+If Redis is running on `127.0.0.1:6379`:
 
-## Join the community
+```bash
+cd Final_Project/backend/backend
+.venv\Scripts\activate
+celery -A config worker -l info
+```
 
-Join our community of developers creating universal apps.
+## 2) Run the Web Frontend (React)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+In a new terminal:
+
+```bash
+cd Final_Project/frontend
+npm install
+npm run dev
+```
+
+Vite will print the local web URL (usually `http://localhost:5173`).
+
+## 3) Run the Mobile App (Expo)
+
+In a new terminal:
+
+```bash
+cd Final_Project/mobile/mobile-app
+npm install
+npx expo start --android --clear
+```
+
+Notes:
+
+- Use `--clear` if you see an old cached app.
+- Press `a` in Expo terminal to reopen on Android emulator.
+
+## Environment Variables
+
+Backend reads environment variables for external services, including:
+
+- `PERENUAL_API_KEY`
+- `TREFLE_API_TOKEN`
+- `GEMINI_API_KEY`
+- `CELERY_BROKER_URL`
+- `CELERY_RESULT_BACKEND`
+
+Create a `.env` file in `backend/backend/` when needed.
+
+## Quick Start (Minimal)
+
+If you only want the mobile app against local backend:
+
+1. Start backend (`python manage.py runserver 0.0.0.0:8000`)
+2. Start mobile app (`npx expo start --android --clear`)
+3. Open Android emulator / Expo Go

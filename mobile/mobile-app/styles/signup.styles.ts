@@ -8,7 +8,6 @@ export const signupStyles = StyleSheet.create({
         alignItems: "center",
     },
 
-    // SAME ICON SIZE AS LOGIN
     logo: {
         width: 140,
         height: 140,
@@ -55,7 +54,6 @@ export const signupStyles = StyleSheet.create({
         color: "#333",
     },
 
-    // SAME BUTTON AS LOGIN
     button: {
         width: "100%",
         borderRadius: 14,
@@ -86,7 +84,6 @@ export const signupStyles = StyleSheet.create({
         color: "#40916c",
     },
 
-    // MODAL (UNCHANGED)
     modalOverlay: {
         flex: 1,
         backgroundColor: "rgba(0,0,0,0.35)",

@@ -8,7 +8,6 @@ export const loginStyles = StyleSheet.create({
         alignItems: "center",
     },
 
-    // BIGGER ICON
     logo: {
         width: 140,
         height: 140,
@@ -28,7 +27,6 @@ export const loginStyles = StyleSheet.create({
         fontStyle: "italic",
     },
 
-    // ERROR BOX
     errorBox: {
         flexDirection: "row",
         backgroundColor: "#e63946",
@@ -46,7 +44,6 @@ export const loginStyles = StyleSheet.create({
         fontSize: 14,
     },
 
-    // INPUTS
     inputContainer: {
         width: "100%",
         marginBottom: 20,
@@ -74,7 +71,6 @@ export const loginStyles = StyleSheet.create({
         color: "#333",
     },
 
-    // BUTTON
     button: {
         width: "100%",
         borderRadius: 14,

@@ -14,7 +14,7 @@ import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from 'react-i18next';
-import { loginStyles as styles } from "./styles/login.styles";
+import { loginStyles as styles } from "../styles/login.styles";
 
 export default function LoginScreen() {
   const { t } = useTranslation();
