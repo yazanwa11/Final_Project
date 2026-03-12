@@ -19,6 +19,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTranslation } from 'react-i18next';
+import {
+  getBestDeviceLocation,
+  resolveLocationLabelFromCoords,
+} from "../../services/locationService";
+
+const HOME_WEATHER_CACHE_KEY = "home_weather_cache_v1";
 
 // =========================================================
 // UTILITIES
@@ -96,11 +102,15 @@ export default function HomeScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadUser();
-      loadPlants();
+      loadPlantsAndWeather();
       loadUnread();
-      loadWeather();
     }, [])
   );
+
+  const loadPlantsAndWeather = async () => {
+    const plantData = await loadPlants();
+    await loadWeather(plantData);
+  };
 
   const loadUser = async () => {
     const token = await AsyncStorage.getItem("access");
@@ -114,17 +124,18 @@ export default function HomeScreen() {
 
   const loadPlants = async () => {
     const token = await AsyncStorage.getItem("access");
-    if (!token) return;
+    if (!token) return [];
 
     const res = await fetch("http://10.0.2.2:8000/api/plants/", {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    if (!res.ok) return;
+    if (!res.ok) return [];
 
     const data = await res.json();
     setPlants(data);
     buildTasks(data);
+    return data;
   };
 
   const loadUnread = async () => {
@@ -149,19 +160,71 @@ export default function HomeScreen() {
     }
   };
 
-  const loadWeather = async () => {
+  const loadWeather = async (plantSource?: any[]) => {
     try {
       setWeatherLoading(true);
       const token = await AsyncStorage.getItem("access");
       if (!token) return;
 
-      const res = await fetch("http://10.0.2.2:8000/api/weather/forecast/?location=Tel Aviv", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      try {
+        const deviceLocation = await getBestDeviceLocation({ forceFresh: true });
+        let weatherUrl: string | null = null;
 
-      if (res.ok) {
-        const data = await res.json();
-        setWeather(data);
+        if (deviceLocation) {
+          const label = deviceLocation.label || "Current Location";
+          const params = new URLSearchParams({
+            latitude: String(deviceLocation.latitude),
+            longitude: String(deviceLocation.longitude),
+            location_label: label,
+          });
+          weatherUrl = `http://10.0.2.2:8000/api/weather/forecast/?${params.toString()}`;
+        } else {
+          const availablePlants = Array.isArray(plantSource) ? plantSource : plants;
+          const plantWithCoords = availablePlants.find(
+            (plant: any) => plant?.latitude != null && plant?.longitude != null
+          );
+          if (plantWithCoords) {
+            const label =
+              (await resolveLocationLabelFromCoords(
+                Number(plantWithCoords.latitude),
+                Number(plantWithCoords.longitude)
+              )) || "Current Location";
+            const params = new URLSearchParams({
+              latitude: String(plantWithCoords.latitude),
+              longitude: String(plantWithCoords.longitude),
+              location_label: String(label),
+            });
+            weatherUrl = `http://10.0.2.2:8000/api/weather/forecast/?${params.toString()}`;
+          }
+        }
+
+        if (!weatherUrl) {
+          const cachedRaw = await AsyncStorage.getItem(HOME_WEATHER_CACHE_KEY);
+          if (cachedRaw) {
+            setWeather(JSON.parse(cachedRaw));
+          }
+          return;
+        }
+
+        const res = await fetch(weatherUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setWeather(data);
+          await AsyncStorage.setItem(HOME_WEATHER_CACHE_KEY, JSON.stringify(data));
+        } else {
+          const cachedRaw = await AsyncStorage.getItem(HOME_WEATHER_CACHE_KEY);
+          if (cachedRaw) {
+            setWeather(JSON.parse(cachedRaw));
+          }
+        }
+      } catch {
+        const cachedRaw = await AsyncStorage.getItem(HOME_WEATHER_CACHE_KEY);
+        if (cachedRaw) {
+          setWeather(JSON.parse(cachedRaw));
+        }
       }
     } catch (error) {
       console.error("Failed to load weather:", error);

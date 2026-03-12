@@ -54,8 +54,12 @@ def plant_weather_status(request, plant_id: int):
             .first()
         )
 
+    evaluation_warning = None
     if snapshot and snapshot.expires_at >= timezone.now():
-        apply_weather_to_plant_reminders(plant, snapshot)
+        try:
+            apply_weather_to_plant_reminders(plant, snapshot)
+        except Exception as exc:
+            evaluation_warning = str(exc)
 
     recent_events = SmartReminderEvent.objects.filter(plant=plant).order_by("-created_at")[:20]
 
@@ -68,6 +72,7 @@ def plant_weather_status(request, plant_id: int):
             "dynamic_watering_interval": plant.dynamic_watering_interval,
             "snapshot": WeatherSnapshotSerializer(snapshot).data if snapshot else None,
             "events": SmartReminderEventSerializer(recent_events, many=True).data,
+            "evaluation_warning": evaluation_warning,
         }
     )
 
@@ -76,18 +81,41 @@ def plant_weather_status(request, plant_id: int):
 @permission_classes([IsAuthenticated])
 def get_forecast(request):
     """Get 3-day weather forecast for user's location or specified location"""
-    location = request.GET.get("location", "Tel Aviv")  # Default location
+    location = request.GET.get("location", "Tel Aviv")
+    latitude_raw = request.GET.get("latitude")
+    longitude_raw = request.GET.get("longitude")
+    timezone_name = request.GET.get("timezone", "auto")
+    location_label = request.GET.get("location_label")
     
     try:
-        coords = WeatherAPIClient.geocode_location(location)
-        if not coords:
-            return Response({"detail": "Location not found"}, status=404)
+        if latitude_raw is not None and longitude_raw is not None:
+            try:
+                latitude = float(latitude_raw)
+                longitude = float(longitude_raw)
+            except (TypeError, ValueError):
+                return Response({"detail": "Invalid latitude/longitude"}, status=400)
+
+            forecast_data = WeatherAPIClient.fetch_forecast_summary(
+                latitude,
+                longitude,
+                timezone_name,
+            )
+            resolved_location = location_label or "Current Location"
+            resolved_timezone = timezone_name
+        else:
+            coords = WeatherAPIClient.geocode_location(location)
+            if not coords:
+                return Response({"detail": "Location not found"}, status=404)
         
-        forecast_data = WeatherAPIClient.fetch_forecast_summary(
-            coords.latitude, 
-            coords.longitude, 
-            coords.timezone
-        )
+            forecast_data = WeatherAPIClient.fetch_forecast_summary(
+                coords.latitude,
+                coords.longitude,
+                coords.timezone,
+            )
+            latitude = coords.latitude
+            longitude = coords.longitude
+            resolved_location = location
+            resolved_timezone = coords.timezone
         
         # Parse daily data for 3 days
         payload = forecast_data.get("payload", {})
@@ -109,10 +137,10 @@ def get_forecast(request):
             })
         
         return Response({
-            "location": location,
-            "latitude": coords.latitude,
-            "longitude": coords.longitude,
-            "timezone": coords.timezone,
+            "location": resolved_location,
+            "latitude": latitude,
+            "longitude": longitude,
+            "timezone": resolved_timezone,
             "days": days,
         })
     

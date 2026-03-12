@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import { getBestDeviceLocation } from "../services/locationService";
 import { createPrediction, PredictionResult } from "../services/predictionApi";
 import { useTranslation } from 'react-i18next';
 
@@ -107,9 +108,97 @@ export default function PlantDetailsScreen() {
         loadAll();
     }, []);
 
+    const syncPlantLocationFromDevice = async (token: string | null) => {
+        if (!token) return;
+
+        try {
+            const deviceLocation = await getBestDeviceLocation({ forceFresh: true });
+            if (!deviceLocation) return;
+
+            const lat = deviceLocation.latitude;
+            const lon = deviceLocation.longitude;
+            const locationLabel = deviceLocation.label || `${lat},${lon}`;
+
+            await fetch(`http://10.0.2.2:8000/api/plants/${id}/`, {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    latitude: lat,
+                    longitude: lon,
+                    location: locationLabel,
+                }),
+            });
+        } catch {
+        }
+    };
+
+    const buildWeatherStatusFromForecast = (forecastData: any, plantData?: any) => {
+        const days = Array.isArray(forecastData?.days) ? forecastData.days : [];
+        const day0 = days[0] || {};
+        const day1 = days[1] || {};
+
+        const next24hRainProbMax = Number(day0.precipitation_probability || 0) / 100;
+        const next24hRainMmSum = Number(day0.precipitation_sum || 0);
+
+        const tempCandidatesMax = [Number(day0.temp_max), Number(day1.temp_max)].filter((v) => Number.isFinite(v));
+        const tempCandidatesMin = [Number(day0.temp_min), Number(day1.temp_min)].filter((v) => Number.isFinite(v));
+
+        const next48hTempMax = tempCandidatesMax.length ? Math.max(...tempCandidatesMax) : 0;
+        const next48hTempMin = tempCandidatesMin.length ? Math.min(...tempCandidatesMin) : 0;
+
+        return {
+            plant_id: Number(id),
+            plant_name: plantData?.name || "",
+            weather_opt_in: true,
+            base_watering_interval: plantData?.watering_interval || 3,
+            dynamic_watering_interval: plantData?.dynamic_watering_interval || plantData?.watering_interval || 3,
+            snapshot: {
+                next24h_rain_prob_max: next24hRainProbMax,
+                next24h_rain_mm_sum: next24hRainMmSum,
+                next48h_temp_max: next48hTempMax,
+                next48h_temp_min: next48hTempMin,
+                heatwave_risk: next48hTempMax >= 35,
+                frost_risk: next48hTempMin <= 2,
+                location_key: forecastData?.location || "",
+            },
+            events: [],
+        };
+    };
+
+    const fetchPlantForecastWeather = async (token: string | null, plantData?: any) => {
+        if (!token) return null;
+
+        const deviceLocation = await getBestDeviceLocation({ forceFresh: true });
+        const lat = deviceLocation?.latitude ?? plantData?.latitude;
+        const lon = deviceLocation?.longitude ?? plantData?.longitude;
+        const label = deviceLocation?.label || plantData?.location || "Current Location";
+
+        if (lat == null || lon == null) return null;
+
+        const params = new URLSearchParams({
+            latitude: String(lat),
+            longitude: String(lon),
+            location_label: String(label),
+        });
+
+        const forecastRes = await fetch(`http://10.0.2.2:8000/api/weather/forecast/?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!forecastRes.ok) return null;
+
+        const forecastData = await forecastRes.json();
+        return buildWeatherStatusFromForecast(forecastData, plantData);
+    };
+
     const loadAll = async () => {
         try {
             const token = await AsyncStorage.getItem("access");
+
+            await syncPlantLocationFromDevice(token);
 
             const p = await fetch(`http://10.0.2.2:8000/api/plants/${id}/`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -117,19 +206,16 @@ export default function PlantDetailsScreen() {
             const plantData = await p.json();
             setPlant(plantData);
 
+            const fastWeather = await fetchPlantForecastWeather(token, plantData);
+            if (fastWeather) {
+                setWeatherStatus(fastWeather);
+            }
+
             const lg = await fetch(`http://10.0.2.2:8000/api/plants/${id}/logs/`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const logData = await lg.json();
             setLogs(Array.isArray(logData) ? logData : []);
-
-            const ws = await fetch(`http://10.0.2.2:8000/api/weather/plants/${id}/status/`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (ws.ok) {
-                const weatherData = await ws.json();
-                setWeatherStatus(weatherData);
-            }
 
             const hs = await fetch(`http://10.0.2.2:8000/api/plants/${id}/health-score/`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -151,22 +237,10 @@ export default function PlantDetailsScreen() {
             setWeatherLoading(true);
             const token = await AsyncStorage.getItem("access");
 
-            await fetch(`http://10.0.2.2:8000/api/weather/plants/${id}/sync/`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            await syncPlantLocationFromDevice(token);
 
-            await fetch("http://10.0.2.2:8000/api/weather/evaluate/", {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            const statusRes = await fetch(`http://10.0.2.2:8000/api/weather/plants/${id}/status/`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            if (statusRes.ok) {
-                const weatherData = await statusRes.json();
+            const weatherData = await fetchPlantForecastWeather(token, plant);
+            if (weatherData) {
                 setWeatherStatus(weatherData);
             } else {
                 Alert.alert(t('plantDetails.weather'), t('plantDetails.weatherFetchFailed'));
@@ -464,20 +538,6 @@ export default function PlantDetailsScreen() {
                         </>
                     ) : (
                         <Text style={styles.empty}>{t('plantDetails.noWeatherSnapshot')}</Text>
-                    )}
-                </View>
-
-                <View style={styles.card}>
-                    <Text style={styles.cardTitle}>{t('plantDetails.recentSmartEvents')}</Text>
-                    {!weatherStatus?.events || weatherStatus.events.length === 0 ? (
-                        <Text style={styles.empty}>{t('plantDetails.noSmartEvents')}</Text>
-                    ) : (
-                        weatherStatus.events.slice(0, 5).map((event: any) => (
-                            <View key={event.id} style={styles.weatherEventRow}>
-                                <Text style={styles.logAction}>{event.event_type}</Text>
-                                <Text style={styles.logDate}>{event.decision_reason}</Text>
-                            </View>
-                        ))
                     )}
                 </View>
 
