@@ -17,6 +17,7 @@ import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { getBestDeviceLocation } from "../services/locationService";
 
 type SuggestedPlant = {
     id?: number;
@@ -86,6 +87,7 @@ export default function SuggestedPlantsScreen() {
     const [searching, setSearching] = useState(false);
     const [query, setQuery] = useState("");
     const [fetchErrorMessage, setFetchErrorMessage] = useState<string | null>(null);
+    const [locationSuggesting, setLocationSuggesting] = useState(false);
     const quotaBlockedUntilRef = useRef<number>(0);
 
     const [selected, setSelected] = useState<SuggestedPlant | null>(null);
@@ -211,14 +213,27 @@ export default function SuggestedPlantsScreen() {
         return res;
     }
 
-    const fetchSuggestions = async (searchValue: string = "", isSearch: boolean = false) => {
+    const fetchSuggestions = async (
+        searchValue: string = "",
+        isSearch: boolean = false,
+        options: {
+            bestForLocation?: boolean;
+            latitude?: number;
+            longitude?: number;
+            locationLabel?: string;
+        } = {}
+    ) => {
         try {
             if (isSearch) {
                 setSearching(true);
             }
 
+            if (options.bestForLocation) {
+                setLocationSuggesting(true);
+            }
+
             const now = Date.now();
-            if (quotaBlockedUntilRef.current > now) {
+            if (quotaBlockedUntilRef.current > now && !options.bestForLocation) {
                 const remainingSeconds = Math.ceil((quotaBlockedUntilRef.current - now) / 1000);
                 const retryMinutes = Math.max(1, Math.ceil(remainingSeconds / 60));
                 if (retryMinutes >= 60) {
@@ -245,8 +260,23 @@ export default function SuggestedPlantsScreen() {
             }
 
             const q = searchValue.trim();
-            const url = q
-                ? `http://10.0.2.2:8000/api/plants/suggestions/?q=${encodeURIComponent(q)}`
+            const params = new URLSearchParams();
+            if (q) {
+                params.set("q", q);
+            }
+            if (options.bestForLocation) {
+                params.set("best_for_location", "1");
+                if (typeof options.latitude === "number" && typeof options.longitude === "number") {
+                    params.set("latitude", String(options.latitude));
+                    params.set("longitude", String(options.longitude));
+                }
+                if (options.locationLabel) {
+                    params.set("location_label", options.locationLabel);
+                }
+            }
+            const queryString = params.toString();
+            const url = queryString
+                ? `http://10.0.2.2:8000/api/plants/suggestions/?${queryString}`
                 : "http://10.0.2.2:8000/api/plants/suggestions/";
 
             const response = await fetchWithAuth(url, {
@@ -321,7 +351,27 @@ export default function SuggestedPlantsScreen() {
             setPlants(filterSuggestionsByQuery(cached, searchValue));
         } finally {
             setSearching(false);
+            setLocationSuggesting(false);
             setLoading(false);
+        }
+    };
+
+    const fetchBestForMyLocation = async () => {
+        try {
+            const location = await getBestDeviceLocation({ forceFresh: true });
+            if (!location) {
+                setFetchErrorMessage(t("suggestedPlants.locationUnavailable"));
+                return;
+            }
+
+            await fetchSuggestions(query, false, {
+                bestForLocation: true,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                locationLabel: location.label,
+            });
+        } catch {
+            setFetchErrorMessage(t("suggestedPlants.locationUnavailable"));
         }
     };
 
@@ -393,6 +443,23 @@ export default function SuggestedPlantsScreen() {
                             </Pressable>
                         ) : null}
                     </View>
+
+                    <Pressable
+                        style={[styles.locationBtn, locationSuggesting && { opacity: 0.85 }]}
+                        onPress={fetchBestForMyLocation}
+                        disabled={locationSuggesting}
+                    >
+                        {locationSuggesting ? (
+                            <ActivityIndicator size="small" color="#ffffff" />
+                        ) : (
+                            <Feather name="map-pin" size={16} color="#ffffff" />
+                        )}
+                        <Text style={styles.locationBtnText}>
+                            {locationSuggesting
+                                ? t("suggestedPlants.findingByLocation")
+                                : t("suggestedPlants.bestForMyLocation")}
+                        </Text>
+                    </Pressable>
 
                     {!!query.trim() && (
                         <Text style={styles.searchMeta}>{t('explore.plantMatches')}: {plants.length}</Text>
@@ -560,6 +627,22 @@ const styles = StyleSheet.create({
         color: "#4a7856",
         fontSize: 12,
         fontWeight: "700",
+    },
+    locationBtn: {
+        marginBottom: 12,
+        backgroundColor: "#2d6a4f",
+        borderRadius: 14,
+        paddingVertical: 11,
+        paddingHorizontal: 14,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+    },
+    locationBtnText: {
+        color: "#ffffff",
+        fontSize: 13.5,
+        fontWeight: "900",
     },
 
     card: {

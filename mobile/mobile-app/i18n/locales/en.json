@@ -291,6 +291,9 @@
   "suggestedPlants": {
     "title": "Suggested Plants",
     "subtitle": "Pick one and we'll set the schedule for you",
+    "bestForMyLocation": "Best for my location",
+    "findingByLocation": "Finding best plants for your location...",
+    "locationUnavailable": "Could not get your location. Please enable location and try again.",
     "noSuggestionsYet": "No suggestions yet",
     "tryAgainLater": "Try again later or change the search query.",
     "tapToAdd": "Tap to add to My Plants",

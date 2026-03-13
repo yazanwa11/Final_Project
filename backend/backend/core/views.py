@@ -40,6 +40,7 @@ from .permissions import IsExpert, IsAdmin
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .inference import InferenceService, DEFAULT_DISEASES
 from .health_scoring import compute_and_store_plant_health
+from .weather_service import WeatherAPIClient
 
 _PERENUAL_BACKOFF_UNTIL_TS = 0
 _PERENUAL_UNAVAILABLE_UNTIL_TS = 0
@@ -559,6 +560,92 @@ def fetch_trefle_suggestions(query: str) -> list:
     return results
 
 
+def _climate_terms_from_summary(summary: dict) -> list[str]:
+    temp_max = float(summary.get("next48h_temp_max") or 0.0)
+    temp_min = float(summary.get("next48h_temp_min") or 0.0)
+    rain_mm = float(summary.get("next24h_rain_mm_sum") or 0.0)
+    rain_prob = float(summary.get("next24h_rain_prob_max") or 0.0)
+    heatwave = bool(summary.get("heatwave_risk"))
+    frost = bool(summary.get("frost_risk"))
+
+    if heatwave or temp_max >= 33:
+        return ["succulent", "cactus", "lavender", "rosemary", "thyme", "agave"]
+    if frost or temp_min <= 4:
+        return ["mint", "kale", "spinach", "pansy", "parsley", "rosemary"]
+    if rain_mm >= 8 or rain_prob >= 0.7:
+        return ["fern", "mint", "basil", "peace lily", "caladium", "begonia"]
+    return ["basil", "mint", "tomato", "pepper", "lavender", "rosemary"]
+
+
+def fetch_trefle_best_for_location(query: str, latitude: float, longitude: float) -> list:
+    token = getattr(settings, "TREFLE_API_TOKEN", None)
+    if not token:
+        return []
+
+    try:
+        summary = WeatherAPIClient.fetch_forecast_summary(latitude, longitude, "auto")
+    except Exception:
+        return []
+
+    q = (query or "").strip()
+    search_terms = _climate_terms_from_summary(summary)
+    if q:
+        search_terms.insert(0, q)
+
+    results = []
+    seen_ids = set()
+    seen_names = set()
+
+    for term in search_terms:
+        try:
+            response = requests.get(
+                "https://trefle.io/api/v1/plants/search",
+                params={"token": token, "q": term, "page": 1},
+                timeout=12,
+            )
+            if response.status_code != 200:
+                continue
+            payload = response.json()
+        except Exception:
+            continue
+
+        items = payload.get("data") or []
+        for p in items:
+            plant_id = p.get("id")
+            name = p.get("common_name") or p.get("scientific_name") or "Unknown"
+            image_url = p.get("image_url")
+            if not isinstance(image_url, str) or not image_url.strip():
+                continue
+
+            normalized_name = str(name).strip().lower()
+            if (plant_id is not None and plant_id in seen_ids) or normalized_name in seen_names:
+                continue
+
+            if plant_id is not None:
+                seen_ids.add(plant_id)
+            seen_names.add(normalized_name)
+
+            category = p.get("family_common_name") or p.get("family") or "General"
+            if is_provider_placeholder(category):
+                category = "General"
+
+            results.append(
+                {
+                    "id": plant_id,
+                    "name": name,
+                    "category": category,
+                    "watering_interval": 4,
+                    "sunlight_interval": 2,
+                    "image": image_url.strip(),
+                }
+            )
+
+            if len(results) >= 20:
+                return results
+
+    return results
+
+
 def resolve_plant_metadata_from_name(plant_name: str) -> dict:
     token = getattr(settings, "PERENUAL_API_KEY", None)
     cleaned_name = (plant_name or "").strip()
@@ -732,6 +819,23 @@ def plant_suggestions(request):
 
     query = (request.GET.get("q") or "").strip()
     token = getattr(settings, "PERENUAL_API_KEY", None)
+    best_for_location = str(request.GET.get("best_for_location") or "").lower() in {"1", "true", "yes"}
+
+    latitude = None
+    longitude = None
+    if best_for_location:
+        try:
+            latitude = float(request.GET.get("latitude"))
+            longitude = float(request.GET.get("longitude"))
+        except (TypeError, ValueError):
+            latitude = None
+            longitude = None
+
+        if latitude is not None and longitude is not None:
+            location_results = fetch_trefle_best_for_location(query, latitude, longitude)
+            if location_results:
+                _set_cached_provider_results(query, location_results)
+                return Response(location_results)
 
     if not token:
         trefle_results = fetch_trefle_suggestions(query)
