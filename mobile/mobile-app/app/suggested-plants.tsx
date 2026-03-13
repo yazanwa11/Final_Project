@@ -28,6 +28,56 @@ type SuggestedPlant = {
 };
 
 const MY_PLANTS_ROUTE = "/(tabs)/MyPlantsScreen";
+const QUOTA_BLOCK_UNTIL_KEY = "suggestions_quota_block_until_ms";
+const SUGGESTIONS_CACHE_KEY = "suggestions_last_success_v1";
+
+function normalizeQuery(value: string): string {
+    return (value || "").trim().toLowerCase();
+}
+
+function filterSuggestionsByQuery(items: SuggestedPlant[], queryText: string): SuggestedPlant[] {
+    const q = normalizeQuery(queryText);
+    if (!q) {
+        return items;
+    }
+    return items.filter((item) => {
+        const name = normalizeQuery(item.name || "");
+        const category = normalizeQuery(item.category || "");
+        return name.includes(q) || category.includes(q);
+    });
+}
+
+function mergeWithCachedImages(incoming: SuggestedPlant[], cached: SuggestedPlant[]): SuggestedPlant[] {
+    const byId = new Map<number, SuggestedPlant>();
+    const byName = new Map<string, SuggestedPlant>();
+
+    for (const item of cached) {
+        if (typeof item.id === "number") {
+            byId.set(item.id, item);
+        }
+        byName.set(normalizeQuery(item.name || ""), item);
+    }
+
+    return incoming.map((item) => {
+        if (item.image) {
+            return item;
+        }
+
+        let cachedItem: SuggestedPlant | undefined;
+        if (typeof item.id === "number") {
+            cachedItem = byId.get(item.id);
+        }
+        if (!cachedItem) {
+            cachedItem = byName.get(normalizeQuery(item.name || ""));
+        }
+
+        if (cachedItem?.image) {
+            return { ...item, image: cachedItem.image };
+        }
+
+        return item;
+    });
+}
 
 export default function SuggestedPlantsScreen() {
     const { t } = useTranslation();
@@ -35,6 +85,8 @@ export default function SuggestedPlantsScreen() {
     const [loading, setLoading] = useState(true);
     const [searching, setSearching] = useState(false);
     const [query, setQuery] = useState("");
+    const [fetchErrorMessage, setFetchErrorMessage] = useState<string | null>(null);
+    const quotaBlockedUntilRef = useRef<number>(0);
 
     const [selected, setSelected] = useState<SuggestedPlant | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -44,9 +96,63 @@ export default function SuggestedPlantsScreen() {
     const [dupVisible, setDupVisible] = useState(false);
     const dupScale = useRef(new Animated.Value(0.85)).current;
     const firstSearchRender = useRef(true);
+    const cooldownProbeTriedRef = useRef(false);
+
+    async function loadCachedSuggestions(): Promise<SuggestedPlant[]> {
+        try {
+            const raw = await AsyncStorage.getItem(SUGGESTIONS_CACHE_KEY);
+            if (!raw) {
+                return [];
+            }
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+                return [];
+            }
+            return parsed as SuggestedPlant[];
+        } catch {
+            return [];
+        }
+    }
+
+    async function saveCachedSuggestions(items: SuggestedPlant[]) {
+        try {
+            await AsyncStorage.setItem(SUGGESTIONS_CACHE_KEY, JSON.stringify(items));
+        } catch {
+            // ignore cache write failures
+        }
+    }
 
     useEffect(() => {
-        fetchSuggestions("");
+        const initializeSuggestions = async () => {
+            try {
+                const savedBlockedUntil = await AsyncStorage.getItem(QUOTA_BLOCK_UNTIL_KEY);
+                const blockedUntil = Number(savedBlockedUntil || 0);
+                const now = Date.now();
+
+                if (Number.isFinite(blockedUntil) && blockedUntil > now) {
+                    quotaBlockedUntilRef.current = blockedUntil;
+                    const remainingSeconds = Math.ceil((blockedUntil - now) / 1000);
+                    const retryHours = Math.max(1, Math.ceil(remainingSeconds / 3600));
+                    setFetchErrorMessage(`Provider temporarily unavailable. Try again in ~${retryHours}h.`);
+                    const cached = await loadCachedSuggestions();
+                    setPlants(filterSuggestionsByQuery(cached, ""));
+                    if (cached.length > 0) {
+                        setLoading(false);
+                        return;
+                    }
+                }
+
+                if (savedBlockedUntil) {
+                    await AsyncStorage.removeItem(QUOTA_BLOCK_UNTIL_KEY);
+                }
+            } catch {
+                // Continue with normal fetch if storage is unavailable
+            }
+
+            fetchSuggestions("");
+        };
+
+        initializeSuggestions();
     }, []);
 
     useEffect(() => {
@@ -111,6 +217,33 @@ export default function SuggestedPlantsScreen() {
                 setSearching(true);
             }
 
+            const now = Date.now();
+            if (quotaBlockedUntilRef.current > now) {
+                const remainingSeconds = Math.ceil((quotaBlockedUntilRef.current - now) / 1000);
+                const retryMinutes = Math.max(1, Math.ceil(remainingSeconds / 60));
+                if (retryMinutes >= 60) {
+                    const retryHours = Math.max(1, Math.ceil(retryMinutes / 60));
+                    setFetchErrorMessage(`Provider temporarily unavailable. Try again in ~${retryHours}h.`);
+                } else {
+                    setFetchErrorMessage(`Provider temporarily unavailable. Try again in ~${retryMinutes}m.`);
+                }
+                const cached = await loadCachedSuggestions();
+                const filteredCached = filterSuggestionsByQuery(cached, searchValue);
+                setPlants(filteredCached);
+
+                const canProbeBackend =
+                    !cooldownProbeTriedRef.current &&
+                    !isSearch &&
+                    !searchValue.trim() &&
+                    filteredCached.length === 0;
+
+                if (!canProbeBackend) {
+                    return;
+                }
+
+                cooldownProbeTriedRef.current = true;
+            }
+
             const q = searchValue.trim();
             const url = q
                 ? `http://10.0.2.2:8000/api/plants/suggestions/?q=${encodeURIComponent(q)}`
@@ -121,22 +254,71 @@ export default function SuggestedPlantsScreen() {
             });
 
             const raw = await response.text();
-            console.log("Suggestions status:", response.status);
-            console.log("Suggestions raw:", raw);
+
+            let parsed: any = null;
+            if (raw) {
+                try {
+                    parsed = JSON.parse(raw);
+                } catch {
+                    parsed = null;
+                }
+            }
 
             if (!response.ok) {
-                throw new Error(`Suggestions API failed: ${response.status} ${raw}`);
+                const retryAfter = Number(parsed?.retry_after_seconds);
+                if (response.status === 429 || (response.status === 503 && Number.isFinite(retryAfter) && retryAfter > 0)) {
+                    const waitSeconds = Number.isFinite(retryAfter) && retryAfter > 0
+                        ? retryAfter
+                        : response.status === 429
+                            ? 60 * 60
+                            : 3 * 60;
+
+                    const blockedUntil = Date.now() + waitSeconds * 1000;
+                    quotaBlockedUntilRef.current = blockedUntil;
+                    await AsyncStorage.setItem(QUOTA_BLOCK_UNTIL_KEY, String(blockedUntil));
+
+                    if (waitSeconds >= 3600) {
+                        const retryHours = Math.max(1, Math.ceil(waitSeconds / 3600));
+                        setFetchErrorMessage(`Provider temporarily unavailable. Try again in ~${retryHours}h.`);
+                    } else {
+                        const retryMinutes = Math.max(1, Math.ceil(waitSeconds / 60));
+                        setFetchErrorMessage(`Provider temporarily unavailable. Try again in ~${retryMinutes}m.`);
+                    }
+                } else if (response.status === 503) {
+                    const blockedUntil = Date.now() + 3 * 60 * 1000;
+                    quotaBlockedUntilRef.current = blockedUntil;
+                    await AsyncStorage.setItem(QUOTA_BLOCK_UNTIL_KEY, String(blockedUntil));
+                    setFetchErrorMessage("Plant provider unavailable. Try again in a few minutes.");
+                } else if (typeof parsed?.detail === "string" && parsed.detail.trim()) {
+                    setFetchErrorMessage(parsed.detail.trim());
+                } else {
+                    setFetchErrorMessage(`Failed to fetch suggestions (${response.status}).`);
+                }
+                const cached = await loadCachedSuggestions();
+                setPlants(filterSuggestionsByQuery(cached, searchValue));
+                return;
             }
 
-            const data = JSON.parse(raw);
+            const data = parsed;
             if (!Array.isArray(data)) {
-                throw new Error(`Expected array, got: ${JSON.stringify(data)}`);
+                setFetchErrorMessage("Invalid suggestions response from server.");
+                const cached = await loadCachedSuggestions();
+                setPlants(filterSuggestionsByQuery(cached, searchValue));
+                return;
             }
 
-            setPlants(data);
+            const cached = await loadCachedSuggestions();
+            const merged = mergeWithCachedImages(data as SuggestedPlant[], cached);
+            setPlants(merged);
+            setFetchErrorMessage(null);
+            quotaBlockedUntilRef.current = 0;
+            await AsyncStorage.removeItem(QUOTA_BLOCK_UNTIL_KEY);
+            await saveCachedSuggestions(merged);
         } catch (err) {
-            console.error("Failed to fetch suggestions", err);
-            setPlants([]);
+            console.warn("Failed to fetch suggestions", err);
+            setFetchErrorMessage("Could not load suggestions. Please try again.");
+            const cached = await loadCachedSuggestions();
+            setPlants(filterSuggestionsByQuery(cached, searchValue));
         } finally {
             setSearching(false);
             setLoading(false);
@@ -225,7 +407,7 @@ export default function SuggestedPlantsScreen() {
                             <View style={styles.empty}>
                                 <Feather name="search" size={22} color="#2d6a4f" />
                                 <Text style={styles.emptyTitle}>{t('suggestedPlants.noSuggestionsYet')}</Text>
-                                <Text style={styles.emptyText}>{t('suggestedPlants.tryAgainLater')}</Text>
+                                <Text style={styles.emptyText}>{fetchErrorMessage || t('suggestedPlants.tryAgainLater')}</Text>
                             </View>
                         }
                         renderItem={({ item }) => (

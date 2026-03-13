@@ -29,6 +29,9 @@ from django.utils import timezone
 from datetime import timedelta
 import requests
 import re
+import time
+import json
+from pathlib import Path
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -37,6 +40,94 @@ from .permissions import IsExpert, IsAdmin
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .inference import InferenceService, DEFAULT_DISEASES
 from .health_scoring import compute_and_store_plant_health
+
+_PERENUAL_BACKOFF_UNTIL_TS = 0
+_PERENUAL_UNAVAILABLE_UNTIL_TS = 0
+_PERENUAL_LAST_RESULTS_BY_QUERY = {}
+
+
+def _provider_cache_file_path() -> Path:
+    base_dir = Path(getattr(settings, "BASE_DIR", Path(__file__).resolve().parent.parent))
+    cache_dir = base_dir / "media" / "provider_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / "perenual_suggestions.json"
+
+
+def _load_persistent_provider_cache() -> dict:
+    cache_file = _provider_cache_file_path()
+    if not cache_file.exists():
+        return {}
+
+    try:
+        payload = json.loads(cache_file.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+    if not isinstance(payload, dict):
+        return {}
+
+    cleaned = {}
+    for key, value in payload.items():
+        if isinstance(key, str) and isinstance(value, list):
+            cleaned[key] = value
+    return cleaned
+
+
+def _save_persistent_provider_cache(cache_payload: dict):
+    cache_file = _provider_cache_file_path()
+    try:
+        cache_file.write_text(json.dumps(cache_payload, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        return
+
+
+def _ensure_provider_cache_loaded():
+    global _PERENUAL_LAST_RESULTS_BY_QUERY
+    if _PERENUAL_LAST_RESULTS_BY_QUERY:
+        return
+    _PERENUAL_LAST_RESULTS_BY_QUERY = _load_persistent_provider_cache()
+
+
+def _cache_key_for_query(query: str) -> str:
+    return (query or "").strip().lower()
+
+
+def _get_cached_provider_results(query: str):
+    _ensure_provider_cache_loaded()
+    key = _cache_key_for_query(query)
+    if key in _PERENUAL_LAST_RESULTS_BY_QUERY:
+        return _PERENUAL_LAST_RESULTS_BY_QUERY.get(key) or []
+
+    base = _PERENUAL_LAST_RESULTS_BY_QUERY.get("") or []
+    if not key:
+        return base
+
+    filtered = [
+        item for item in base
+        if key in str(item.get("name", "")).lower() or key in str(item.get("category", "")).lower()
+    ]
+    return filtered
+
+
+def _set_cached_provider_results(query: str, results):
+    _ensure_provider_cache_loaded()
+    key = _cache_key_for_query(query)
+    _PERENUAL_LAST_RESULTS_BY_QUERY[key] = list(results or [])
+
+    if key:
+        existing_base = _PERENUAL_LAST_RESULTS_BY_QUERY.get("") or []
+        combined = list(existing_base)
+        seen_ids = {item.get("id") for item in combined}
+        for item in results or []:
+            item_id = item.get("id")
+            if item_id not in seen_ids:
+                combined.append(item)
+                seen_ids.add(item_id)
+        _PERENUAL_LAST_RESULTS_BY_QUERY[""] = combined[:40]
+    else:
+        _PERENUAL_LAST_RESULTS_BY_QUERY[""] = list(results or [])[:40]
+
+    _save_persistent_provider_cache(_PERENUAL_LAST_RESULTS_BY_QUERY)
 
 
 
@@ -381,6 +472,93 @@ def is_provider_placeholder(value: str | None) -> bool:
     return "upgrade plans" in text or "subscription-api-pricing" in text
 
 
+def extract_provider_image(default_image: dict | None) -> str | None:
+    if not isinstance(default_image, dict):
+        return None
+
+    for key in ("original_url", "regular_url", "medium_url", "small_url", "thumbnail"):
+        value = default_image.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    return None
+
+
+def provider_retry_after_seconds(response) -> int | None:
+    header_retry = response.headers.get("Retry-After")
+    if str(header_retry or "").isdigit():
+        return int(header_retry)
+
+    try:
+        payload = response.json()
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    body_retry = payload.get("Retry-After") or payload.get("retry_after") or payload.get("retry_after_seconds")
+    if str(body_retry or "").isdigit():
+        return int(body_retry)
+
+    reset_at = payload.get("X-RateLimit-Reset") or payload.get("x-ratelimit-reset")
+    try:
+        if reset_at is not None:
+            remaining = int(reset_at) - int(time.time())
+            return max(1, remaining)
+    except (TypeError, ValueError):
+        return None
+
+    return None
+
+
+def fetch_trefle_suggestions(query: str) -> list:
+    token = getattr(settings, "TREFLE_API_TOKEN", None)
+    if not token:
+        return []
+
+    q = (query or "").strip()
+    if q:
+        trefle_url = "https://trefle.io/api/v1/plants/search"
+        params = {"token": token, "q": q, "page": 1}
+    else:
+        trefle_url = "https://trefle.io/api/v1/plants"
+        params = {"token": token, "page": 1}
+
+    try:
+        response = requests.get(trefle_url, params=params, timeout=12)
+        if response.status_code != 200:
+            return []
+        payload = response.json()
+    except Exception:
+        return []
+
+    items = (payload.get("data") or [])[:20]
+    results = []
+
+    for p in items:
+        plant_id = p.get("id")
+        name = p.get("common_name") or p.get("scientific_name") or "Unknown"
+        image_url = p.get("image_url")
+        if not isinstance(image_url, str) or not image_url.strip():
+            continue
+
+        category = p.get("family_common_name") or p.get("family") or "General"
+        if is_provider_placeholder(category):
+            category = "General"
+
+        results.append({
+            "id": plant_id,
+            "name": name,
+            "category": category,
+            "watering_interval": 4,
+            "sunlight_interval": 2,
+            "image": image_url.strip(),
+        })
+
+    return results
+
+
 def resolve_plant_metadata_from_name(plant_name: str) -> dict:
     token = getattr(settings, "PERENUAL_API_KEY", None)
     cleaned_name = (plant_name or "").strip()
@@ -550,65 +728,131 @@ def identify_plant_from_image(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def plant_suggestions(request):
-    query = request.GET.get("q") or "plant"
+    global _PERENUAL_BACKOFF_UNTIL_TS, _PERENUAL_UNAVAILABLE_UNTIL_TS
+
+    query = (request.GET.get("q") or "").strip()
     token = getattr(settings, "PERENUAL_API_KEY", None)
 
     if not token:
+        trefle_results = fetch_trefle_suggestions(query)
+        if trefle_results:
+            _set_cached_provider_results(query, trefle_results)
+            return Response(trefle_results)
         return Response(local_plant_suggestions(query))
+
+    now_ts = int(time.time())
+    if _PERENUAL_BACKOFF_UNTIL_TS > now_ts:
+        cached = _get_cached_provider_results(query)
+        if cached:
+            return Response(cached)
+        trefle_results = fetch_trefle_suggestions(query)
+        if trefle_results:
+            _set_cached_provider_results(query, trefle_results)
+            return Response(trefle_results)
+        return Response(
+            {
+                "detail": "Perenual API rate limit exceeded.",
+                "retry_after_seconds": _PERENUAL_BACKOFF_UNTIL_TS - now_ts,
+            },
+            status=429,
+        )
+
+    if _PERENUAL_UNAVAILABLE_UNTIL_TS > now_ts:
+        cached = _get_cached_provider_results(query)
+        if cached:
+            return Response(cached)
+        trefle_results = fetch_trefle_suggestions(query)
+        if trefle_results:
+            _set_cached_provider_results(query, trefle_results)
+            return Response(trefle_results)
+        return Response(
+            {
+                "detail": "Plant provider unavailable.",
+                "retry_after_seconds": _PERENUAL_UNAVAILABLE_UNTIL_TS - now_ts,
+            },
+            status=503,
+        )
 
     search_url = "https://perenual.com/api/species-list"
     try:
-        sr = requests.get(search_url, params={"key": token, "q": query, "page": 1}, timeout=12)
+        params = {"key": token, "page": 1}
+        if query:
+            params["q"] = query
+        sr = requests.get(search_url, params=params, timeout=12)
         if sr.status_code != 200:
-            return Response(local_plant_suggestions(query))
+            if sr.status_code == 429:
+                retry_after_seconds = provider_retry_after_seconds(sr) or 3600
+                _PERENUAL_BACKOFF_UNTIL_TS = int(time.time()) + int(retry_after_seconds)
+                cached = _get_cached_provider_results(query)
+                if cached:
+                    return Response(cached)
+                trefle_results = fetch_trefle_suggestions(query)
+                if trefle_results:
+                    _set_cached_provider_results(query, trefle_results)
+                    return Response(trefle_results)
+                return Response(
+                    {
+                        "detail": "Perenual API rate limit exceeded.",
+                        "retry_after_seconds": retry_after_seconds,
+                    },
+                    status=429,
+                )
+            retry_after_seconds = provider_retry_after_seconds(sr) or 180
+            _PERENUAL_UNAVAILABLE_UNTIL_TS = int(time.time()) + int(retry_after_seconds)
+            cached = _get_cached_provider_results(query)
+            if cached:
+                return Response(cached)
+            trefle_results = fetch_trefle_suggestions(query)
+            if trefle_results:
+                _set_cached_provider_results(query, trefle_results)
+                return Response(trefle_results)
+            return Response(
+                {
+                    "detail": "Plant provider unavailable.",
+                    "retry_after_seconds": retry_after_seconds,
+                },
+                status=503,
+            )
         search_payload = sr.json()
     except Exception:
-        return Response(local_plant_suggestions(query))
+        retry_after_seconds = 180
+        _PERENUAL_UNAVAILABLE_UNTIL_TS = int(time.time()) + retry_after_seconds
+        cached = _get_cached_provider_results(query)
+        if cached:
+            return Response(cached)
+        trefle_results = fetch_trefle_suggestions(query)
+        if trefle_results:
+            _set_cached_provider_results(query, trefle_results)
+            return Response(trefle_results)
+        return Response(
+            {
+                "detail": "Plant provider unavailable.",
+                "retry_after_seconds": retry_after_seconds,
+            },
+            status=503,
+        )
 
-    items = (search_payload.get("data") or [])[:10]
+    _PERENUAL_BACKOFF_UNTIL_TS = 0
+    _PERENUAL_UNAVAILABLE_UNTIL_TS = 0
+
+    items = (search_payload.get("data") or [])[:20]
 
     results = []
     for p in items:
         plant_id = p.get("id")
-        if not plant_id:
+        name = p.get("common_name") or (p.get("scientific_name") or ["Unknown"])[0]
+        default_image = p.get("default_image") or {}
+        image_url = extract_provider_image(default_image)
+
+        if not image_url:
             continue
 
-        detail_url = f"https://perenual.com/api/species/details/{plant_id}"
-        try:
-            dr = requests.get(detail_url, params={"key": token}, timeout=12)
-            if dr.status_code != 200:
-                continue
-            detail_payload = dr.json()
-        except Exception:
-            continue
-
-        d = detail_payload if isinstance(detail_payload, dict) else {}
-        name = d.get("common_name") or p.get("common_name") or (p.get("scientific_name") or ["Unknown"])[0]
-        default_image = d.get("default_image") or p.get("default_image") or {}
-        image_url = default_image.get("original_url") or default_image.get("regular_url")
-
-        water_text = None
-        benchmark = d.get("watering_general_benchmark") or {}
-        if isinstance(benchmark, dict):
-            water_text = benchmark.get("value")
-        if not water_text:
-            water_text = d.get("watering")
-        if is_provider_placeholder(water_text):
-            water_text = None
-
-        sunlight_value = d.get("sunlight")
-        if isinstance(sunlight_value, list):
-            sunlight_text = " ".join(str(item) for item in sunlight_value)
-        else:
-            sunlight_text = str(sunlight_value or "")
-        if is_provider_placeholder(sunlight_text):
-            sunlight_text = ""
-
-        watering_interval = parse_days_from_text(water_text, default_value=4)
-        sunlight_interval = 1 if "full" in sunlight_text.lower() else 2
         category = p.get("cycle") or "General"
         if is_provider_placeholder(category):
             category = "General"
+
+        watering_interval = 4
+        sunlight_interval = 2
 
         results.append({
             "id": plant_id,
@@ -620,7 +864,16 @@ def plant_suggestions(request):
         })
 
     if not results:
-        return Response(local_plant_suggestions(query))
+        cached = _get_cached_provider_results(query)
+        if cached:
+            return Response(cached)
+        trefle_results = fetch_trefle_suggestions(query)
+        if trefle_results:
+            _set_cached_provider_results(query, trefle_results)
+            return Response(trefle_results)
+        return Response({"detail": "No provider suggestions with images."}, status=503)
+
+    _set_cached_provider_results(query, results)
 
     return Response(results)
 
