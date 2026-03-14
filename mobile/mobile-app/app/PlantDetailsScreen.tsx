@@ -11,6 +11,7 @@ import {
     Animated,
     ActivityIndicator,
     Alert,
+    Share,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -80,10 +81,15 @@ export default function PlantDetailsScreen() {
     const { id } = useLocalSearchParams();
     const [plant, setPlant] = useState<any>(null);
     const [logs, setLogs] = useState<any[]>([]);
+    const [growthEntries, setGrowthEntries] = useState<any[]>([]);
+    const [latestTimelapse, setLatestTimelapse] = useState<any>(null);
     const [healthScore, setHealthScore] = useState<any>(null);
     const [weatherStatus, setWeatherStatus] = useState<any>(null);
     const [weatherLoading, setWeatherLoading] = useState(false);
     const [predictionLoading, setPredictionLoading] = useState(false);
+    const [journalLoading, setJournalLoading] = useState(false);
+    const [journalUploadLoading, setJournalUploadLoading] = useState(false);
+    const [timelapseLoading, setTimelapseLoading] = useState(false);
     const [predictionImageUri, setPredictionImageUri] = useState<string | null>(null);
     const [predictionResult, setPredictionResult] = useState<PredictionResult | null>(null);
     const [loading, setLoading] = useState(true);
@@ -217,6 +223,8 @@ export default function PlantDetailsScreen() {
             const logData = await lg.json();
             setLogs(Array.isArray(logData) ? logData : []);
 
+            await loadGrowthJournal(token);
+
             const hs = await fetch(`http://10.0.2.2:8000/api/plants/${id}/health-score/`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -230,6 +238,131 @@ export default function PlantDetailsScreen() {
             console.log("LOAD ERROR:", e);
             setLoading(false);
         }
+    };
+
+    const loadGrowthJournal = async (token: string | null) => {
+        if (!token) return;
+
+        try {
+            setJournalLoading(true);
+            const res = await fetch(`http://10.0.2.2:8000/api/plants/${id}/growth-journal/`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (!res.ok) {
+                setGrowthEntries([]);
+                setLatestTimelapse(null);
+                return;
+            }
+
+            const payload = await res.json();
+            setGrowthEntries(Array.isArray(payload?.entries) ? payload.entries : []);
+            setLatestTimelapse(payload?.latest_timelapse || null);
+        } catch {
+            setGrowthEntries([]);
+            setLatestTimelapse(null);
+        } finally {
+            setJournalLoading(false);
+        }
+    };
+
+    const uploadGrowthPhoto = async () => {
+        try {
+            const token = await AsyncStorage.getItem("access");
+            if (!token) {
+                Alert.alert(t('common.error'), t('auth.loginRequired'));
+                return;
+            }
+
+            const picked = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ["images"],
+                quality: 0.9,
+                allowsEditing: false,
+            });
+
+            if (picked.canceled || !picked.assets?.length) {
+                return;
+            }
+
+            setJournalUploadLoading(true);
+
+            const uri = picked.assets[0].uri;
+            const formData = new FormData();
+            formData.append("captured_at", new Date().toISOString());
+            formData.append(
+                "image",
+                {
+                    uri,
+                    name: `growth-${Date.now()}.jpg`,
+                    type: "image/jpeg",
+                } as any
+            );
+
+            const res = await fetch(`http://10.0.2.2:8000/api/plants/${id}/growth-journal/add/`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            if (!res.ok) {
+                Alert.alert(t('common.error'), t('plantDetails.uploadGrowthFailed'));
+                return;
+            }
+
+            await loadGrowthJournal(token);
+        } catch {
+            Alert.alert(t('common.error'), t('plantDetails.uploadGrowthFailed'));
+        } finally {
+            setJournalUploadLoading(false);
+        }
+    };
+
+    const generateTimelapse = async () => {
+        try {
+            const token = await AsyncStorage.getItem("access");
+            if (!token) {
+                Alert.alert(t('common.error'), t('auth.loginRequired'));
+                return;
+            }
+
+            setTimelapseLoading(true);
+
+            const res = await fetch(`http://10.0.2.2:8000/api/plants/${id}/growth-journal/timelapse/`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                Alert.alert(t('plantDetails.timelapse'), data?.detail || t('plantDetails.timelapseCreateFailed'));
+                return;
+            }
+
+            setLatestTimelapse(data);
+            Alert.alert(t('common.success'), t('plantDetails.timelapseReady'));
+        } catch {
+            Alert.alert(t('plantDetails.timelapse'), t('plantDetails.timelapseCreateFailed'));
+        } finally {
+            setTimelapseLoading(false);
+        }
+    };
+
+    const shareTimelapse = async () => {
+        const timelapseUrl = latestTimelapse?.file_url;
+        if (!timelapseUrl) {
+            Alert.alert(t('plantDetails.timelapse'), t('plantDetails.noTimelapseYet'));
+            return;
+        }
+
+        await Share.share({
+            title: t('plantDetails.shareTimelapse'),
+            message: timelapseUrl,
+            url: timelapseUrl,
+        });
     };
 
     const refreshWeather = async () => {
@@ -579,6 +712,65 @@ export default function PlantDetailsScreen() {
                             <Text style={styles.value}>{t('plantDetails.treatment')}:</Text>
                             <Text style={styles.logDate}>{predictionResult.treatment_recommendation || t('plantDetails.noRecommendation')}</Text>
                         </View>
+                    ) : null}
+                </View>
+
+                <Text style={styles.section}>{t('plantDetails.growthJournalSection')}</Text>
+
+                <View style={styles.card}>
+                    <View style={styles.weatherHeaderRow}>
+                        <Text style={styles.cardTitle}>{t('plantDetails.growthJournal')}</Text>
+                        <TouchableOpacity
+                            style={styles.refreshBtn}
+                            onPress={uploadGrowthPhoto}
+                            disabled={journalUploadLoading}
+                        >
+                            {journalUploadLoading ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Text style={styles.refreshBtnText}>{t('plantDetails.addGrowthPhoto')}</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+
+                    {journalLoading ? (
+                        <ActivityIndicator size="small" color="#2d6a4f" />
+                    ) : growthEntries.length === 0 ? (
+                        <Text style={styles.empty}>{t('plantDetails.noGrowthPhotos')}</Text>
+                    ) : (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.growthList}>
+                            {growthEntries.map((entry) => (
+                                <View key={entry.id} style={styles.growthItem}>
+                                    <Image source={{ uri: entry.image_url }} style={styles.growthImage} />
+                                    <Text style={styles.growthDate}>
+                                        {new Date(entry.captured_at || entry.created_at).toLocaleDateString()}
+                                    </Text>
+                                </View>
+                            ))}
+                        </ScrollView>
+                    )}
+
+                    <View style={styles.journalActionRow}>
+                        <TouchableOpacity style={styles.refreshBtn} onPress={generateTimelapse} disabled={timelapseLoading}>
+                            {timelapseLoading ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Text style={styles.refreshBtnText}>{t('plantDetails.createTimelapse')}</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.secondaryBtn} onPress={shareTimelapse}>
+                            <Text style={styles.secondaryBtnText}>{t('plantDetails.shareTimelapse')}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {latestTimelapse?.file_url ? (
+                        <>
+                            <Image source={{ uri: latestTimelapse.file_url }} style={styles.predictionImage} />
+                            <Text style={styles.logDate}>
+                                {t('plantDetails.lastTimelapseAt')}: {new Date(latestTimelapse.created_at).toLocaleString()}
+                            </Text>
+                        </>
                     ) : null}
                 </View>
 
@@ -957,6 +1149,51 @@ const styles = StyleSheet.create({
         backgroundColor: "#f5f9f7",
         padding: 20,
         borderRadius: 16,
+    },
+
+    growthList: {
+        marginTop: 8,
+    },
+
+    growthItem: {
+        marginRight: 12,
+        alignItems: "center",
+    },
+
+    growthImage: {
+        width: 110,
+        height: 110,
+        borderRadius: 12,
+        backgroundColor: "#edf3ef",
+    },
+
+    growthDate: {
+        marginTop: 6,
+        fontSize: 12,
+        color: "#3e7c52",
+        fontWeight: "700",
+    },
+
+    journalActionRow: {
+        marginTop: 16,
+        flexDirection: "row",
+        gap: 10,
+    },
+
+    secondaryBtn: {
+        backgroundColor: "#52b788",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 14,
+        minWidth: 90,
+        alignItems: "center",
+    },
+
+    secondaryBtnText: {
+        color: "#fff",
+        fontWeight: "800",
+        fontSize: 14,
+        letterSpacing: 0.3,
     },
 
     overlay: {

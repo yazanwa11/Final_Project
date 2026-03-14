@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Plant ,CareLog,Notification,ExpertPost, CommunityPost, Profile
+from .models import Plant ,CareLog,Notification,ExpertPost, CommunityPost, Profile, PlantGrowthEntry, PlantTimelapse
 
 
 # --- Users ---
@@ -177,6 +177,36 @@ class CareLogSerializer(serializers.ModelSerializer):
         model = CareLog
         fields = ["id", "plant", "plant_name", "action", "notes", "date"]
         read_only_fields = ["id", "date"]
+
+
+class PlantGrowthEntrySerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = PlantGrowthEntry
+        fields = ["id", "plant", "image", "image_url", "notes", "captured_at", "created_at"]
+        read_only_fields = ["id", "created_at", "image_url"]
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image and hasattr(obj.image, "url"):
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None
+
+
+class PlantTimelapseSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = PlantTimelapse
+        fields = ["id", "plant", "file", "file_url", "frame_count", "created_at"]
+        read_only_fields = ["id", "file_url", "frame_count", "created_at"]
+
+    def get_file_url(self, obj):
+        request = self.context.get("request")
+        if obj.file and hasattr(obj.file, "url"):
+            return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+        return None
 
 
 

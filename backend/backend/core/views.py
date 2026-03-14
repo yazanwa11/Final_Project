@@ -2,7 +2,7 @@ from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Plant, Notification, ExpertPost, ExpertInquiry, Prediction, DiseaseProfile, PlantHealthSnapshot, CommunityPost, CommunityPostLike, Profile
+from .models import Plant, Notification, ExpertPost, ExpertInquiry, Prediction, DiseaseProfile, PlantHealthSnapshot, CommunityPost, CommunityPostLike, Profile, PlantGrowthEntry, PlantTimelapse
 from .serializers import (
     UserSerializer,
     RoleAwareTokenObtainPairSerializer,
@@ -15,6 +15,8 @@ from .serializers import (
     PredictionCreateSerializer,
     PredictionSerializer,
     PlantHealthSnapshotSerializer,
+    PlantGrowthEntrySerializer,
+    PlantTimelapseSerializer,
 )
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -32,7 +34,9 @@ import re
 import time
 import json
 from pathlib import Path
+from io import BytesIO
 from django.conf import settings
+from django.core.files.base import ContentFile
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -41,6 +45,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .inference import InferenceService, DEFAULT_DISEASES
 from .health_scoring import compute_and_store_plant_health
 from .weather_service import WeatherAPIClient
+from PIL import Image, ImageOps
 
 _PERENUAL_BACKOFF_UNTIL_TS = 0
 _PERENUAL_UNAVAILABLE_UNTIL_TS = 0
@@ -368,6 +373,115 @@ def delete_care_log(request, log_id):
         return Response({"message": "Deleted"}, status=200)
     except CareLog.DoesNotExist:
         return Response({"error": "Not found"}, status=404)
+
+
+def _load_growth_frames(entries):
+    frames = []
+    target_size = (720, 720)
+
+    for entry in entries:
+        try:
+            with Image.open(entry.image.path) as source:
+                normalized = ImageOps.fit(source.convert("RGB"), target_size, method=Image.Resampling.LANCZOS)
+                frames.append(normalized)
+        except Exception:
+            continue
+
+    return frames
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_growth_journal(request, plant_id):
+    try:
+        plant = Plant.objects.get(id=plant_id, user=request.user)
+    except Plant.DoesNotExist:
+        return Response({"detail": "Plant not found."}, status=404)
+
+    entries = PlantGrowthEntry.objects.filter(user=request.user, plant=plant).order_by("captured_at", "created_at")
+    latest_timelapse = PlantTimelapse.objects.filter(user=request.user, plant=plant).first()
+
+    return Response(
+        {
+            "entries": PlantGrowthEntrySerializer(entries, many=True, context={"request": request}).data,
+            "latest_timelapse": (
+                PlantTimelapseSerializer(latest_timelapse, context={"request": request}).data
+                if latest_timelapse
+                else None
+            ),
+        }
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def add_growth_journal_entry(request, plant_id):
+    try:
+        plant = Plant.objects.get(id=plant_id, user=request.user)
+    except Plant.DoesNotExist:
+        return Response({"detail": "Plant not found."}, status=404)
+
+    payload = request.data.copy()
+    payload["plant"] = plant.id
+
+    serializer = PlantGrowthEntrySerializer(data=payload, context={"request": request})
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+
+    entry = serializer.save(user=request.user, plant=plant)
+    return Response(PlantGrowthEntrySerializer(entry, context={"request": request}).data, status=201)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_growth_journal_entry(request, entry_id):
+    try:
+        entry = PlantGrowthEntry.objects.get(id=entry_id, user=request.user)
+    except PlantGrowthEntry.DoesNotExist:
+        return Response({"detail": "Growth entry not found."}, status=404)
+
+    entry.delete()
+    return Response(status=204)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_growth_timelapse(request, plant_id):
+    try:
+        plant = Plant.objects.get(id=plant_id, user=request.user)
+    except Plant.DoesNotExist:
+        return Response({"detail": "Plant not found."}, status=404)
+
+    entries = list(
+        PlantGrowthEntry.objects.filter(user=request.user, plant=plant)
+        .exclude(image="")
+        .order_by("captured_at", "created_at")[:160]
+    )
+    if len(entries) < 2:
+        return Response({"detail": "At least 2 growth photos are required to create a time-lapse."}, status=400)
+
+    frames = _load_growth_frames(entries)
+    if len(frames) < 2:
+        return Response({"detail": "Could not process growth photos for time-lapse generation."}, status=400)
+
+    output = BytesIO()
+    frames[0].save(
+        output,
+        format="GIF",
+        save_all=True,
+        append_images=frames[1:],
+        duration=700,
+        loop=0,
+        optimize=True,
+    )
+    output.seek(0)
+
+    timelapse = PlantTimelapse(user=request.user, plant=plant, frame_count=len(frames))
+    filename = f"plant_{plant.id}_{int(time.time())}.gif"
+    timelapse.file.save(filename, ContentFile(output.read()), save=True)
+
+    return Response(PlantTimelapseSerializer(timelapse, context={"request": request}).data, status=201)
 
 
 @api_view(['PUT'])

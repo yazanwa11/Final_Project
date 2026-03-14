@@ -375,6 +375,18 @@
     "urgency": "Urgency",
     "treatment": "Treatment",
     "noRecommendation": "No recommendation",
-    "editInterval": "Edit {{type}} Interval"
+    "editInterval": "Edit {{type}} Interval",
+    "growthJournalSection": "Growth Journal & Time-lapse",
+    "growthJournal": "Growth Journal",
+    "addGrowthPhoto": "Add Photo",
+    "noGrowthPhotos": "No growth photos yet",
+    "uploadGrowthFailed": "Failed to upload growth photo",
+    "timelapse": "Time-lapse",
+    "createTimelapse": "Create Time-lapse",
+    "timelapseCreateFailed": "Failed to create time-lapse",
+    "timelapseReady": "Time-lapse is ready",
+    "shareTimelapse": "Share",
+    "noTimelapseYet": "No time-lapse yet",
+    "lastTimelapseAt": "Last generated"
   }
 }

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 import uuid
 
 class Plant(models.Model):
@@ -46,6 +47,35 @@ class Plant(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class PlantGrowthEntry(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="plant_growth_entries")
+    plant = models.ForeignKey(Plant, on_delete=models.CASCADE, related_name="growth_entries")
+    image = models.ImageField(upload_to="growth_journal/%Y/%m/%d/")
+    notes = models.TextField(blank=True, default="")
+    captured_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["captured_at", "created_at"]
+
+    def __str__(self):
+        return f"Growth entry #{self.id} - {self.plant.name}"
+
+
+class PlantTimelapse(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="plant_timelapses")
+    plant = models.ForeignKey(Plant, on_delete=models.CASCADE, related_name="timelapses")
+    file = models.FileField(upload_to="timelapse/%Y/%m/%d/")
+    frame_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Timelapse #{self.id} - {self.plant.name}"
 
 
 class Profile(models.Model):

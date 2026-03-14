@@ -38,6 +38,10 @@ from .views import (
     plant_health_score,
     plant_health_history,
     recompute_plant_health,
+    get_growth_journal,
+    add_growth_journal_entry,
+    delete_growth_journal_entry,
+    create_growth_timelapse,
 )
 
 router = DefaultRouter()
@@ -69,6 +73,10 @@ urlpatterns = [
     path("plants/<int:plant_id>/logs/add/", views.add_care_log),
     path("logs/<int:log_id>/delete/", views.delete_care_log),
     path("plants/<int:plant_id>/reminders/", views.update_reminders),
+    path("plants/<int:plant_id>/growth-journal/", get_growth_journal),
+    path("plants/<int:plant_id>/growth-journal/add/", add_growth_journal_entry),
+    path("plants/growth-journal/<int:entry_id>/delete/", delete_growth_journal_entry),
+    path("plants/<int:plant_id>/growth-journal/timelapse/", create_growth_timelapse),
 
     # -------------------------
     # Suggested Plants

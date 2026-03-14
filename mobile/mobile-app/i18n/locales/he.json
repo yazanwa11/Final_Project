@@ -375,6 +375,18 @@
     "urgency": "דחיפות",
     "treatment": "טיפול",
     "noRecommendation": "אין המלצה",
-    "editInterval": "ערוך מרווח {{type}}"
+    "editInterval": "ערוך מרווח {{type}}",
+    "growthJournalSection": "יומן גדילה וטיים-לאפס",
+    "growthJournal": "יומן גדילה",
+    "addGrowthPhoto": "הוסף תמונה",
+    "noGrowthPhotos": "אין תמונות גדילה עדיין",
+    "uploadGrowthFailed": "העלאת תמונת גדילה נכשלה",
+    "timelapse": "טיים-לאפס",
+    "createTimelapse": "צור טיים-לאפס",
+    "timelapseCreateFailed": "יצירת טיים-לאפס נכשלה",
+    "timelapseReady": "הטיים-לאפס מוכן",
+    "shareTimelapse": "שתף",
+    "noTimelapseYet": "עדיין אין טיים-לאפס",
+    "lastTimelapseAt": "נוצר לאחרונה"
   }
 }
