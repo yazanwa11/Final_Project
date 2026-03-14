@@ -30,9 +30,14 @@ def needs_follow_up(message: str, user_context: Dict[str, object]) -> List[str]:
     questions = []
     if not user_context.get("plants"):
         questions.append("Which plant are you asking about?")
+
     lowered = (message or "").lower()
-    if "yellow" in lowered or "spots" in lowered:
+    yellow_or_spots = any(token in lowered for token in ["yellow", "spots", "spot", "צהוב", "צהובה", "הצהבה", "כתם", "כתמים"])
+    watering_topic = any(token in lowered for token in ["water", "watering", "השקיה", "להשקות", "יבש", "יבשה"])
+
+    if yellow_or_spots:
         questions.append("How long have you seen these symptoms?")
-    if "water" in lowered:
+    if watering_topic:
         questions.append("What is your current watering frequency?")
+
     return questions[:2]

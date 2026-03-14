@@ -8,6 +8,7 @@ from django.conf.urls.static import static
 from .views import RegisterView, UserMeView, PlantViewSet, CustomTokenObtainPairView
 from . import views
 from . import weather_views
+from . import places_views
 from . import assistant_views
 
 from .views import (
@@ -122,6 +123,11 @@ urlpatterns = [
     path("weather/plants/<int:plant_id>/sync/", weather_views.trigger_weather_sync_for_plant),
     path("weather/plants/<int:plant_id>/status/", weather_views.plant_weather_status),
     path("weather/forecast/", weather_views.get_forecast),
+
+    # -------------------------
+    # Nearby Nurseries
+    # -------------------------
+    path("places/nurseries/", places_views.nearby_nurseries),
 
     # -------------------------
     # AI Assistant

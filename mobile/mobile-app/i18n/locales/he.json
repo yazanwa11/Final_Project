@@ -131,6 +131,7 @@
     "subtitleUser": "חפש טיפים ושאל מומחה כשאתה צריך עזרה",
     "loadingExplore": "טוען גלייה...",
     "ai": "AI",
+    "nurseries": "משתלות",
     "ask": "שאל",
     "inbox": "תיבת דואר",
     "searchPlaceholder": "חפש צמחים או נושאים...",
@@ -178,6 +179,25 @@
     "likePost": "אהבתי",
     "comment": "הגב",
     "share": "שתף"
+  },
+  "nurseries": {
+    "title": "משתלות קרובות",
+    "subtitle": "משתלות מקצועיות ליד המיקום שלך",
+    "sortedByDistance": "מסודר לפי מרחק מ-{{location}}",
+    "loading": "מחפש משתלות קרובות...",
+    "locationRequired": "נדרש מיקום כדי לטעון משתלות קרובות.",
+    "loadFailed": "טעינת המשתלות הקרובות נכשלה",
+    "couldntLoad": "לא ניתן לטעון משתלות קרובות",
+    "retry": "נסה שוב",
+    "emptyTitle": "לא נמצאו משתלות",
+    "emptyText": "נסה לרענן או לעבור לאזור קרוב.",
+    "distanceKm": "{{km}} ק״מ",
+    "addressUnavailable": "כתובת לא זמינה",
+    "noPhone": "מספר טלפון לא זמין",
+    "callUnavailable": "לא ניתן לפתוח את החייגן במכשיר זה.",
+    "rating": "דירוג {{rating}} ({{count}} ביקורות)",
+    "navigate": "ניווט",
+    "call": "התקשר"
   },
   "expertInbox": {
     "title": "תיבת דואר מומחה",
@@ -286,6 +306,7 @@
     "myPlants": "הצמחים שלי",
     "add": "הוסף",
     "explore": "גלה",
+    "nurseries": "משתלות",
     "profile": "פרופיל"
   },
   "suggestedPlants": {

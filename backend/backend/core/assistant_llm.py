@@ -84,13 +84,14 @@ def generate_with_gemini(user_message: str, context_block: str, retrieved: List[
     parts = (candidates[0].get("content") or {}).get("parts") or []
     text = "\n".join(str(part.get("text") or "") for part in parts if part.get("text")).strip()
     if not text:
+        retry_language_instruction = "Respond in Hebrew only." if str(language).lower().startswith("he") else "Respond in English only."
         retry_response = requests.post(
             url,
             params={"key": api_key},
             json={
                 "contents": [
                     {
-                        "parts": [{"text": f"Answer this gardening question safely and clearly:\n{user_message}"}],
+                        "parts": [{"text": f"{retry_language_instruction}\nAnswer this gardening question safely and clearly:\n{user_message}"}],
                     }
                 ],
                 "generationConfig": {

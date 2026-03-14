@@ -51,7 +51,7 @@ export default function AssistantScreen() {
     setSending(true);
 
     try {
-      const result = await assistantChat(message, sessionId);
+      const result = await assistantChat(message, sessionId, undefined, i18n.language || "he");
       if (!sessionId && result.session_id) setSessionId(result.session_id);
 
       const assistantLines: string[] = [result.answer || ""];

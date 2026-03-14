@@ -131,6 +131,7 @@
     "subtitleUser": "Search tips and ask an expert when you need help",
     "loadingExplore": "Loading Explore...",
     "ai": "AI",
+    "nurseries": "Nurseries",
     "ask": "Ask",
     "inbox": "Inbox",
     "searchPlaceholder": "Search plants or topics...",
@@ -178,6 +179,25 @@
     "likePost": "Like",
     "comment": "Comment",
     "share": "Share"
+  },
+  "nurseries": {
+    "title": "Nearby Nurseries",
+    "subtitle": "Professional nurseries near your location",
+    "sortedByDistance": "Sorted by distance from {{location}}",
+    "loading": "Finding nearby nurseries...",
+    "locationRequired": "Location is required to load nearby nurseries.",
+    "loadFailed": "Failed to load nearby nurseries",
+    "couldntLoad": "Couldn't load nearby nurseries",
+    "retry": "Try again",
+    "emptyTitle": "No nurseries found",
+    "emptyText": "Try refreshing or moving to a nearby area.",
+    "distanceKm": "{{km}} km",
+    "addressUnavailable": "Address not available",
+    "noPhone": "Phone number not available",
+    "callUnavailable": "Could not open the phone dialer on this device.",
+    "rating": "Rating {{rating}} ({{count}} reviews)",
+    "navigate": "Navigate",
+    "call": "Call"
   },
   "expertInbox": {
     "title": "Expert Inbox",
@@ -286,6 +306,7 @@
     "myPlants": "My Plants",
     "add": "Add",
     "explore": "Explore",
+    "nurseries": "Nurseries",
     "profile": "Profile"
   },
   "suggestedPlants": {

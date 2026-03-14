@@ -195,4 +195,6 @@ WEATHER_RAIN_MM_SKIP_THRESHOLD = float(os.getenv("WEATHER_RAIN_MM_SKIP_THRESHOLD
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
 GEMINI_VISION_MODEL = os.getenv("GEMINI_VISION_MODEL", "gemini-2.5-flash")
+ASSISTANT_REQUIRE_GEMINI = os.getenv("ASSISTANT_REQUIRE_GEMINI", "true").strip().lower() in {"1", "true", "yes", "on"}
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 

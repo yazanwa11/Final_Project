@@ -11,6 +11,7 @@ export default function RootLayout() {
       <Stack.Screen name="EditProfileScreen" />
       <Stack.Screen name="PlantDetailsScreen" />
       <Stack.Screen name="AssistantScreen" />
+      <Stack.Screen name="NurseriesScreen" />
       <Stack.Screen name="AdminDashboardScreen" />
 
       {/* ✅ NEW */}

@@ -53,6 +53,16 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="NurseriesScreen"
+        options={{
+          title: t('tabs.nurseries'),
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="map-pin" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="CommunityFeedScreen"
         options={{
           title: "Feed",
