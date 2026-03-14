@@ -208,7 +208,7 @@ export default function AddPlantScreen() {
                     {/* Modern Suggested Plants Button */}
                     <TouchableOpacity
                         activeOpacity={0.9}
-                        onPress={() => router.push("../suggested-plants")}
+                        onPress={() => router.push("/(tabs)/suggested-plants")}
                         style={styles.suggestBtnWrap}
                     >
                         <LinearGradient

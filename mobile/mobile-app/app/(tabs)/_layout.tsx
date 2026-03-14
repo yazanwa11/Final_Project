@@ -112,6 +112,55 @@ export default function TabLayout() {
           ),
         }}
       />
+
+      <Tabs.Screen
+        name="PlantDetailsScreen"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="EditProfileScreen"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="AssistantScreen"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="NotificationsScreen"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="ExpertInboxScreen"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="AdminDashboardScreen"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="suggested-plants"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

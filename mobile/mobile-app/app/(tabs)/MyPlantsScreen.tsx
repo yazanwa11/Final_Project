@@ -415,7 +415,7 @@ export default function MyPlantsScreen() {
                                             key={item.id}
                                             style={styles.card}
                                             activeOpacity={0.85}
-                                            onPress={() => router.push(`/PlantDetailsScreen?id=${item.id}`)}
+                                            onPress={() => router.push(`/(tabs)/PlantDetailsScreen?id=${item.id}`)}
                                         >
                                             <Pressable style={styles.editPill} onPress={() => openEditPlant(item)}>
                                                 <Feather name="edit-2" size={12} color="#fff" />
@@ -620,7 +620,7 @@ export default function MyPlantsScreen() {
                         <TouchableOpacity
                             activeOpacity={0.9}
                             style={styles.fabBtn}
-                            onPress={() => router.push("../suggested-plants" as any)}
+                            onPress={() => router.push("/(tabs)/suggested-plants" as any)}
                         >
                             <LinearGradient
                                 colors={["#74c69d", "#b7e4c7"]}

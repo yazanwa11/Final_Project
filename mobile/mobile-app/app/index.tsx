@@ -60,7 +60,7 @@ export default function LoginScreen() {
         await AsyncStorage.setItem("role", data.role || selectedRole);
 
         if ((data.role || selectedRole) === "admin") {
-          router.push("/AdminDashboardScreen");
+          router.push("/(tabs)/AdminDashboardScreen");
         } else {
           router.push("/(tabs)/HomeScreen");
         }

@@ -187,7 +187,7 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               style={styles.editButton}
-              onPress={() => router.push("/EditProfileScreen")}
+              onPress={() => router.push("/(tabs)/EditProfileScreen")}
             >
               <Feather name="edit-2" size={15} color="#fff" />
               <Text style={styles.editText}>{t("profile.editProfile")}</Text>

@@ -338,13 +338,13 @@ export default function ExploreScreen() {
             </View>
 
             <View style={styles.headerActions}>
-              <Pressable onPress={() => router.push("/AssistantScreen" as any)} style={styles.inboxBtn}>
+              <Pressable onPress={() => router.push("/(tabs)/AssistantScreen" as any)} style={styles.inboxBtn}>
                 <Feather name="message-circle" size={16} color="#2e4d35" />
                 <Text style={styles.inboxText}>{t('explore.ai')}</Text>
               </Pressable>
 
               {/* Bell for everyone */}
-              <Pressable onPress={() => router.push("/NotificationsScreen" as any)} style={styles.bellBtn}>
+              <Pressable onPress={() => router.push("/(tabs)/NotificationsScreen" as any)} style={styles.bellBtn}>
                 <Feather name="bell" size={18} color="#2e4d35" />
                 {unreadCount > 0 && (
                   <View style={styles.badge}>
@@ -363,7 +363,7 @@ export default function ExploreScreen() {
 
               {/* Expert: Inbox */}
               {isExpert && (
-                <Pressable onPress={() => router.push("/ExpertInboxScreen" as any)} style={styles.inboxBtn}>
+                <Pressable onPress={() => router.push("/(tabs)/ExpertInboxScreen" as any)} style={styles.inboxBtn}>
                   <Feather name="inbox" size={16} color="#2e4d35" />
                   <Text style={styles.inboxText}>{t('explore.inbox')}</Text>
                 </Pressable>

@@ -363,7 +363,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     style={styles.bellBtn}
                     activeOpacity={0.85}
-                    onPress={() => router.push("/NotificationsScreen" as any)}
+                    onPress={() => router.push("/(tabs)/NotificationsScreen" as any)}
                   >
                     <Feather name="bell" size={18} color="#2e4d35" />
                     {unreadCount > 0 && (
