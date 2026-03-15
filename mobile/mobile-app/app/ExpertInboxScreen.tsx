@@ -10,6 +10,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +25,7 @@ type Inquiry = {
   user_username: string;
   plant_name?: string;
   question: string;
+  image_url?: string | null;
   created_at: string;
 };
 
@@ -198,6 +200,7 @@ export default function ExpertInboxScreen() {
                   <Text style={styles.cardBody} numberOfLines={3}>
                     {item.question}
                   </Text>
+                  {item.image_url ? <Image source={{ uri: item.image_url }} style={styles.cardImage} /> : null}
                   <Text style={styles.cardTime}>{new Date(item.created_at).toLocaleString()}</Text>
                 </View>
 
@@ -219,6 +222,7 @@ export default function ExpertInboxScreen() {
                     {selected?.user_username} {selected?.plant_name ? `• ${selected.plant_name}` : ""}
                   </Text>
                   <Text style={styles.qText}>{selected?.question}</Text>
+                  {selected?.image_url ? <Image source={{ uri: selected.image_url }} style={styles.modalImage} /> : null}
                 </View>
 
                 <TextInput
@@ -300,6 +304,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 15.5, fontWeight: "900", color: "#2e4d35" },
   cardBody: { marginTop: 6, fontSize: 13.5, color: "#2e4d35", lineHeight: 18 },
+  cardImage: { width: "100%", height: 120, borderRadius: 14, marginTop: 10 },
   cardTime: { marginTop: 8, fontSize: 12, color: "#4b9560" },
 
   empty: {
@@ -341,6 +346,7 @@ const styles = StyleSheet.create({
   },
   qTitle: { fontWeight: "900", color: "#1b4332" },
   qText: { marginTop: 6, color: "#2e4d35", lineHeight: 18, fontWeight: "700" },
+  modalImage: { width: "100%", height: 150, borderRadius: 12, marginTop: 10 },
 
   input: {
     marginTop: 12,

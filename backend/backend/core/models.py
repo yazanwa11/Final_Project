@@ -224,6 +224,7 @@ class ExpertInquiry(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="expert_inquiries")
     plant_name = models.CharField(max_length=100, blank=True, default="")
     question = models.TextField()
+    image = models.ImageField(upload_to="expert_inquiries/", blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="open")
 
     answered_by = models.ForeignKey(

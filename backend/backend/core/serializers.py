@@ -293,6 +293,7 @@ from PIL import Image
 
 class ExpertInquirySerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source="user.username", read_only=True)
+    image_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = ExpertInquiry
@@ -301,12 +302,19 @@ class ExpertInquirySerializer(serializers.ModelSerializer):
             "user_username",
             "plant_name",
             "question",
+            "image_url",
             "status",
             "answer",
             "answered_at",
             "created_at",
         ]
-        read_only_fields = ["id", "user_username", "status", "answer", "answered_at", "created_at"]
+        read_only_fields = ["id", "user_username", "image_url", "status", "answer", "answered_at", "created_at"]
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image and hasattr(obj.image, "url"):
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None
 
 
 class PredictionCreateSerializer(serializers.ModelSerializer):

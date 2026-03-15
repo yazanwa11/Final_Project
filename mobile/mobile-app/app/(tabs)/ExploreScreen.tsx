@@ -19,6 +19,8 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from 'react-i18next';
+import * as ImagePicker from "expo-image-picker";
+import { useFocusEffect } from "@react-navigation/native";
 
 type ExpertPost = {
   id: number;
@@ -51,6 +53,7 @@ export default function ExploreScreen() {
   const [askOpen, setAskOpen] = useState(false);
   const [askPlant, setAskPlant] = useState("");
   const [askQuestion, setAskQuestion] = useState("");
+  const [askImageUri, setAskImageUri] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
   // Create Post (expert)
@@ -81,6 +84,25 @@ export default function ExploreScreen() {
     setToastTitle(title);
     setToastBody(body);
     setToastOpen(true);
+  };
+
+  const closeAskModal = () => {
+    setAskOpen(false);
+    setAskPlant("");
+    setAskQuestion("");
+    setAskImageUri(null);
+  };
+
+  const pickAskImage = async () => {
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.85,
+      allowsEditing: false,
+    });
+
+    if (!picked.canceled && picked.assets?.length) {
+      setAskImageUri(picked.assets[0].uri);
+    }
   };
 
   async function fetchWithAuth(url: string, options: any = {}) {
@@ -198,10 +220,25 @@ export default function ExploreScreen() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([loadUser(), loadPosts(), loadUnread()]);
+      await loadUser();
+      await loadPosts();
+      await loadUnread();
       setLoading(false);
     })();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const q = query.trim();
+        await loadUser();
+        await loadUnread();
+        await loadPosts(q || undefined);
+      })();
+
+      return () => { };
+    }, [query])
+  );
 
   // Debounced search: filters expert posts and plant suggestions
   useEffect(() => {
@@ -237,11 +274,13 @@ export default function ExploreScreen() {
 
     const q = query.trim();
 
-    await Promise.all([
-      loadUnread(),
-      q ? loadPosts(q) : loadPosts(),
-      q ? loadSuggestions(q) : Promise.resolve(setSuggestions([])),
-    ]);
+    await loadUnread();
+    await (q ? loadPosts(q) : loadPosts());
+    if (q) {
+      await loadSuggestions(q);
+    } else {
+      setSuggestions([]);
+    }
 
     setRefreshing(false);
   };
@@ -256,18 +295,30 @@ export default function ExploreScreen() {
         return;
       }
 
+      const formData = new FormData();
+      formData.append("plant_name", askPlant.trim());
+      formData.append("question", q);
+      if (askImageUri) {
+        formData.append(
+          "image",
+          {
+            uri: askImageUri,
+            name: `inquiry-${Date.now()}.jpg`,
+            type: "image/jpeg",
+          } as any
+        );
+      }
+
       const res = await fetchWithAuth("http://10.0.2.2:8000/api/explore/ask/", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ plant_name: askPlant.trim(), question: q }),
+        headers: { Accept: "application/json" },
+        body: formData,
       });
 
       const raw = await res.text();
       if (!res.ok) throw new Error(raw);
 
-      setAskOpen(false);
-      setAskPlant("");
-      setAskQuestion("");
+      closeAskModal();
       showToast(t('explore.sent'), t('explore.questionSentToExperts'));
     } catch (e: any) {
       showToast(t('common.error'), e?.message || t('explore.failedToSendQuestion'));
@@ -333,8 +384,8 @@ export default function ExploreScreen() {
           {/* Header */}
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
-              <Text style={styles.title}>{t('explore.title')}</Text>
-              <Text style={styles.subtitle}>{headerSubtitle}</Text>
+              <Text style={styles.title} numberOfLines={1}>{t('explore.title')}</Text>
+              <Text style={styles.subtitle} numberOfLines={2}>{headerSubtitle}</Text>
             </View>
 
             <View style={styles.headerActions}>
@@ -484,13 +535,13 @@ export default function ExploreScreen() {
           )}
 
           {/* Ask Expert Modal */}
-          <Modal visible={askOpen} transparent animationType="fade" onRequestClose={() => setAskOpen(false)}>
+          <Modal visible={askOpen} transparent animationType="fade" onRequestClose={closeAskModal}>
             <View style={styles.modalOverlay}>
               <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
                 <View style={styles.modalCard}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>{t('explore.askAnExpert')}</Text>
-                    <Pressable onPress={() => setAskOpen(false)} style={styles.iconBtn}>
+                    <Pressable onPress={closeAskModal} style={styles.iconBtn}>
                       <Feather name="x" size={18} color="#2e4d35" />
                     </Pressable>
                   </View>
@@ -514,8 +565,26 @@ export default function ExploreScreen() {
                     multiline
                   />
 
+                  <Text style={[styles.modalHint, { marginTop: 10 }]}>{t('explore.imageOptional')}</Text>
+                  <View style={styles.askImageActions}>
+                    <Pressable onPress={pickAskImage} style={styles.askImageBtn}>
+                      <Feather name="image" size={16} color="#1b4332" />
+                      <Text style={styles.askImageBtnText}>
+                        {askImageUri ? t('explore.changeImage') : t('explore.addImage')}
+                      </Text>
+                    </Pressable>
+
+                    {askImageUri ? (
+                      <Pressable onPress={() => setAskImageUri(null)} style={styles.askImageClearBtn}>
+                        <Text style={styles.askImageClearText}>{t('explore.removeImage')}</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+
+                  {askImageUri ? <Image source={{ uri: askImageUri }} style={styles.askImagePreview} /> : null}
+
                   <View style={styles.modalActions}>
-                    <Pressable onPress={() => setAskOpen(false)} style={styles.secondaryBtn}>
+                    <Pressable onPress={closeAskModal} style={styles.secondaryBtn}>
                       <Text style={styles.secondaryText}>{t('common.cancel')}</Text>
                     </Pressable>
 
@@ -632,18 +701,23 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 12, color: "#2d6a4f", fontSize: 16, fontWeight: "800" },
 
   headerRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 14,
+    flexDirection: "column",
+    alignItems: "stretch",
+    justifyContent: "flex-start",
+    gap: 10,
     paddingHorizontal: 2,
     paddingTop: 8,
   },
-  headerLeft: { flex: 1, paddingRight: 12 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 0 },
+  headerLeft: { width: "100%" },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
 
-  title: { fontSize: 28, fontWeight: "900", color: "#1b4332", letterSpacing: -0.5 },
-  subtitle: { marginTop: 6, fontSize: 15, color: "#52b788", fontWeight: "600" },
+  title: { fontSize: 24, fontWeight: "900", color: "#1b4332", letterSpacing: -0.3 },
+  subtitle: { marginTop: 4, fontSize: 14, color: "#52b788", fontWeight: "600" },
 
   // Search
   searchBar: {
@@ -734,8 +808,8 @@ const styles = StyleSheet.create({
   badgeText: { color: "#fff", fontWeight: "900", fontSize: 11 },
 
   primaryBtn: {
-    height: 48,
-    paddingHorizontal: 18,
+    height: 44,
+    paddingHorizontal: 14,
     borderRadius: 16,
     backgroundColor: "#2d6a4f",
     flexDirection: "row",
@@ -750,8 +824,8 @@ const styles = StyleSheet.create({
   primaryText: { color: "#fff", fontWeight: "900", fontSize: 16 },
 
   inboxBtn: {
-    height: 48,
-    paddingHorizontal: 18,
+    height: 44,
+    paddingHorizontal: 14,
     borderRadius: 16,
     backgroundColor: "#ffffff",
     shadowColor: "#2d6a4f",
@@ -765,11 +839,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  inboxText: { color: "#1b4332", fontWeight: "900", fontSize: 16 },
+  inboxText: { color: "#1b4332", fontWeight: "900", fontSize: 15 },
 
   publishFab: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 18,
     backgroundColor: "#2d6a4f",
     alignItems: "center",
@@ -867,6 +941,38 @@ const styles = StyleSheet.create({
     color: "#1b4332",
     fontSize: 16,
     fontWeight: "600",
+  },
+
+  askImageActions: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  askImageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#f8faf9",
+    borderWidth: 1.5,
+    borderColor: "rgba(45,106,79,0.2)",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  askImageBtnText: { color: "#1b4332", fontWeight: "800", fontSize: 14 },
+  askImageClearBtn: {
+    backgroundColor: "rgba(45,106,79,0.08)",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  askImageClearText: { color: "#2d6a4f", fontWeight: "800", fontSize: 14 },
+  askImagePreview: {
+    marginTop: 10,
+    width: "100%",
+    height: 140,
+    borderRadius: 14,
   },
 
   modalActions: { marginTop: 18, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12 },

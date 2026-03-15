@@ -1304,9 +1304,11 @@ def create_expert_post(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def ask_expert(request):
     plant_name = (request.data.get("plant_name") or "").strip()
     question = (request.data.get("question") or "").strip()
+    image = request.FILES.get("image")
 
     if not question:
         return Response({"detail": "question is required"}, status=400)
@@ -1315,6 +1317,7 @@ def ask_expert(request):
         user=request.user,
         plant_name=plant_name,
         question=question,
+        image=image,
         status="open",
     )
 
@@ -1338,7 +1341,7 @@ def ask_expert(request):
 @permission_classes([IsAuthenticated, IsExpert])
 def expert_inbox(request):
     qs = ExpertInquiry.objects.filter(status="open")
-    return Response(ExpertInquirySerializer(qs, many=True).data)
+    return Response(ExpertInquirySerializer(qs, many=True, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -1361,6 +1364,32 @@ def answer_inquiry(request, inquiry_id: int):
     inquiry.answered_by = request.user
     inquiry.answered_at = timezone.now()
     inquiry.save()
+
+    image_url = None
+    if inquiry.image and hasattr(inquiry.image, "url"):
+        image_url = request.build_absolute_uri(inquiry.image.url)
+
+    question_preview = (inquiry.question or "").strip()
+    if len(question_preview) > 80:
+        question_preview = f"{question_preview[:77]}..."
+
+    title_parts = []
+    if inquiry.plant_name:
+        title_parts.append(inquiry.plant_name)
+    title_parts.append("Expert answer")
+
+    post_title = " • ".join(title_parts)
+    if question_preview:
+        post_content = f"Question: {inquiry.question}\n\nAnswer: {answer}"
+    else:
+        post_content = answer
+
+    ExpertPost.objects.create(
+        author=request.user,
+        title=post_title,
+        content=post_content,
+        image_url=image_url,
+    )
 
     # notify user who asked
     Notification.objects.create(
