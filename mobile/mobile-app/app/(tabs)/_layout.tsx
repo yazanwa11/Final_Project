@@ -149,13 +149,6 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="AdminDashboardScreen"
-        options={{
-          href: null,
-        }}
-      />
-
-      <Tabs.Screen
         name="suggested-plants"
         options={{
           href: null,
