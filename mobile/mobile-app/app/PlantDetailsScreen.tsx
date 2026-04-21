@@ -137,7 +137,7 @@ export default function PlantDetailsScreen() {
             const lon = deviceLocation.longitude;
             const locationLabel = deviceLocation.label || `${lat},${lon}`;
 
-            await fetch(`http://10.0.2.2:8000/api/plants/${id}/`, {
+            await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/`, {
                 method: "PATCH",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -168,7 +168,7 @@ export default function PlantDetailsScreen() {
         const next48hTempMin = tempCandidatesMin.length ? Math.min(...tempCandidatesMin) : 0;
 
         return {
-            plant_id: Number(id),
+            plant_id: Number(plantId),
             plant_name: plantData?.name || "",
             weather_opt_in: true,
             base_watering_interval: plantData?.watering_interval || 3,
@@ -218,7 +218,7 @@ export default function PlantDetailsScreen() {
 
             await syncPlantLocationFromDevice(token);
 
-            const p = await fetch(`http://10.0.2.2:8000/api/plants/${id}/`, {
+            const p = await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const plantData = await p.json();
@@ -229,7 +229,7 @@ export default function PlantDetailsScreen() {
                 setWeatherStatus(fastWeather);
             }
 
-            const lg = await fetch(`http://10.0.2.2:8000/api/plants/${id}/logs/`, {
+            const lg = await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/logs/`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const logData = await lg.json();
@@ -237,7 +237,7 @@ export default function PlantDetailsScreen() {
 
             await loadGrowthJournal(token);
 
-            const hs = await fetch(`http://10.0.2.2:8000/api/plants/${id}/health-score/`, {
+            const hs = await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/health-score/`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (hs.ok) {
@@ -257,7 +257,7 @@ export default function PlantDetailsScreen() {
 
         try {
             setJournalLoading(true);
-            const res = await fetch(`http://10.0.2.2:8000/api/plants/${id}/growth-journal/`, {
+            const res = await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/growth-journal/`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
 
@@ -310,7 +310,7 @@ export default function PlantDetailsScreen() {
                 } as any
             );
 
-            const res = await fetch(`http://10.0.2.2:8000/api/plants/${id}/growth-journal/add/`, {
+            const res = await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/growth-journal/add/`, {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -341,7 +341,7 @@ export default function PlantDetailsScreen() {
 
             setTimelapseLoading(true);
 
-            const res = await fetch(`http://10.0.2.2:8000/api/plants/${id}/growth-journal/timelapse/`, {
+            const res = await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/growth-journal/timelapse/`, {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -401,7 +401,7 @@ export default function PlantDetailsScreen() {
         try {
             const token = await AsyncStorage.getItem("access");
 
-            const res = await fetch(`http://10.0.2.2:8000/api/plants/${id}/logs/add/`, {
+            const res = await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/logs/add/`, {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -434,7 +434,7 @@ export default function PlantDetailsScreen() {
                 ? { watering_interval: interval }
                 : { sunlight_interval: interval };
 
-        const res = await fetch(`http://10.0.2.2:8000/api/plants/${id}/reminders/`, {
+        const res = await fetch(`http://10.0.2.2:8000/api/plants/${plantId}/reminders/`, {
             method: "PUT",
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -477,7 +477,7 @@ export default function PlantDetailsScreen() {
             setPredictionImageUri(uri);
             setPredictionLoading(true);
 
-            const result = await createPrediction(token, uri, Number(id), i18n.language);
+            const result = await createPrediction(token, uri, Number(plantId), i18n.language);
             setPredictionResult(result);
         } catch (e: any) {
             Alert.alert(t('plantDetails.aiDetection'), e?.message || t('plantDetails.aiDetectionFailed'));
