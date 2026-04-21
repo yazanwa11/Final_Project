@@ -76,6 +76,16 @@ Notes:
 - Use `--clear` if you see an old cached app.
 - Press `a` in Expo terminal to reopen on Android emulator.
 
+## 4) Run Tests
+
+From the workspace root:
+
+```bash
+cd Final_Project/backend/backend
+.venv\Scripts\activate
+python manage.py test core.tests -v 2
+```
+
 ## Environment Variables
 
 Backend reads environment variables for external services, including:

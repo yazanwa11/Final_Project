@@ -352,6 +352,9 @@ def add_care_log(request, plant_id):
             if log.action.lower() == "watered":
                 plant.last_watered = timezone.now()
 
+            if log.action.lower() == "fertilized":
+                plant.last_fertilized = timezone.now()
+
             if log.action.lower() == "sunlight":
                 plant.last_sunlight = timezone.now()
 
@@ -1100,30 +1103,54 @@ def plant_suggestions(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@parser_classes([JSONParser])
 def add_suggested_plant(request):
-    data = request.data
-    name = (data.get("name") or "").strip()
+    try:
+        data = request.data if isinstance(request.data, dict) else request.POST
+        name = (data.get("name") or "").strip()
 
-    if not name:
-        return Response({"detail": "Missing plant name"}, status=status.HTTP_400_BAD_REQUEST)
+        if not name:
+            return Response({"detail": "Missing plant name"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if Plant.objects.filter(user=request.user, name__iexact=name).exists():
-        return Response({"detail": "Plant with this name already exists"}, status=status.HTTP_409_CONFLICT)
+        if Plant.objects.filter(user=request.user, name__iexact=name).exists():
+            return Response({"detail": "Plant with this name already exists"}, status=status.HTTP_409_CONFLICT)
 
-    # ✅ take image from the suggested payload
-    img = (data.get("image") or data.get("image_url") or "").strip() or None
+        # ✅ take image from the suggested payload
+        # URLField requires either a valid URL or None (empty strings will fail validation)
+        img_str = (data.get("image") or data.get("image_url") or "").strip()
+        img = img_str if img_str else None
 
-    plant = Plant.objects.create(
-        user=request.user,
-        name=name,
-        category=data.get("category", "Indoor"),
-        watering_interval=data.get("watering_interval") or 3,
-        sunlight_interval=data.get("sunlight_interval") or 2,
-        planting_date=timezone.now().date(),
-        image_url=img,  # ✅ THIS is the important line
-    )
+        # Validate category is one of the allowed choices
+        category = data.get("category", "Indoor")
+        valid_categories = ["Vegetable", "Flower", "Herb", "Tree", "Indoor"]
+        if category not in valid_categories:
+            category = "Indoor"
 
-    return Response({"status": "created", "plant_id": plant.id}, status=status.HTTP_201_CREATED)
+        # Ensure intervals are valid integers
+        try:
+            watering_interval = int(data.get("watering_interval") or 3)
+            sunlight_interval = int(data.get("sunlight_interval") or 2)
+        except (ValueError, TypeError):
+            watering_interval = 3
+            sunlight_interval = 2
+
+        plant = Plant.objects.create(
+            user=request.user,
+            name=name,
+            category=category,
+            watering_interval=watering_interval,
+            sunlight_interval=sunlight_interval,
+            fertilizing_interval=7,  # default fertilizing every 7 days
+            planting_date=timezone.now().date(),
+            image_url=img,
+        )
+
+        return Response({"status": "created", "plant_id": plant.id}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception("Error in add_suggested_plant")
+        return Response({"detail": f"Error creating plant: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 

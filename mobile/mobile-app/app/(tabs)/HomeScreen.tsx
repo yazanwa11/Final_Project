@@ -433,6 +433,25 @@ export default function HomeScreen() {
             </View>
           )}
 
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.gameButtonWrap}
+            onPress={() => router.push("/(tabs)/PlantGameScreen" as any)}
+          >
+            <LinearGradient
+              colors={["#8ed081", "#5ba961"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gameButton}
+            >
+              <View>
+                <Text style={styles.gameButtonTitle}>Plant Game</Text>
+                <Text style={styles.gameButtonSubtitle}>Rescue your plant for fun points</Text>
+              </View>
+              <Feather name="play-circle" size={28} color="#ffffff" />
+            </LinearGradient>
+          </TouchableOpacity>
+
           {/*         source={{
                         uri:
                           user?.avatar && user.avatar !== "null"
@@ -685,6 +704,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#4a90e2",
     marginTop: 4,
+    fontWeight: "600",
+  },
+
+  gameButtonWrap: {
+    marginTop: 18,
+  },
+  gameButton: {
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#1b4332",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  gameButtonTitle: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+  gameButtonSubtitle: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
     fontWeight: "600",
   },
 

@@ -43,8 +43,13 @@ def _detect_intent(message: str) -> str:
         "גובה", "גדילה", "צמיחה", "לצמוח", "לגדול", "מתפתח",
     ]
     disease_tokens = [
-        "yellow", "spot", "spots", "disease", "fung", "mildew", "rot", "brown", "pest", "pests",
-        "צהוב", "צהובה", "הצהבה", "כתם", "כתמים", "מחלה", "פטריה", "ריקבון", "חום", "חומה", "מזיק", "מזיקים", "כנימה", "קמחית",
+        "yellow", "spot", "spots", "disease", "fung", "mildew", "rot", "brown",
+        "צהוב", "צהובה", "הצהבה", "כתם", "כתמים", "מחלה", "פטריה", "ריקבון", "חום", "חומה",
+    ]
+    pest_tokens = [
+        "pest", "pests", "bug", "bugs", "insect", "insects", "grasshopper", "grasshoppers",
+        "aphid", "aphids", "mealybug", "mealybugs", "mite", "mites", "thrips", "caterpillar", "slug", "snail",
+        "מזיק", "מזיקים", "חרק", "חרקים", "חגב", "חגבים", "כנימה", "כנימות", "קמחית", "אקרית", "אקריות", "טריפס", "זחל", "שבלול", "חלזון",
     ]
     watering_tokens = [
         "water", "watering", "dry", "overwater", "underwater",
@@ -61,6 +66,8 @@ def _detect_intent(message: str) -> str:
 
     if any(token in text for token in growth_tokens):
         return "growth"
+    if any(token in text for token in pest_tokens):
+        return "pest"
     if any(token in text for token in disease_tokens):
         return "disease"
     if any(token in text for token in watering_tokens):
@@ -134,6 +141,22 @@ def _generate_answer(
             "הימנע מהרטבת העלים בזמן השקיה ועקוב אחרי התפשטות התסמינים ב־3-5 הימים הקרובים."
             if is_hebrew
             else "Avoid wetting leaves during watering and monitor spread over the next 3-5 days."
+        )
+    elif intent == "pest":
+        lines.append(
+            "למזיקים כמו חגבים: בצע איסוף ידני בשעות ערב, בדוק גם את הצד התחתון של העלים, והסר עלים עם נזק חמור."
+            if is_hebrew
+            else "For pests like grasshoppers: hand-pick in the evening, inspect leaf undersides, and remove heavily damaged leaves."
+        )
+        lines.append(
+            "ריסוס בסבון אשלגני או שמן נים יכול לעזור; חזור על הטיפול כל 4-7 ימים לפי התווית."
+            if is_hebrew
+            else "Insecticidal soap or neem oil can help; repeat every 4-7 days based on label guidance."
+        )
+        lines.append(
+            "אם מדובר בחגבים גדולים, השתמש גם ברשת הגנה דקה מעל הצמח כדי למנוע אכילה נוספת."
+            if is_hebrew
+            else "If large grasshoppers are present, add a fine protective mesh over the plant to prevent further feeding."
         )
     elif intent == "watering":
         lines.append(

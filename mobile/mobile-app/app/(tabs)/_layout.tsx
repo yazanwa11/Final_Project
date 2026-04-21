@@ -154,6 +154,13 @@ export default function TabLayout() {
           href: null,
         }}
       />
+
+      <Tabs.Screen
+        name="PlantGameScreen"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

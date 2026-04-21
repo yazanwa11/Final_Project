@@ -10,6 +10,7 @@ import {
     Modal,
     Pressable,
     TextInput,
+    Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -378,6 +379,7 @@ export default function SuggestedPlantsScreen() {
     const addSuggestedPlant = async (plant: SuggestedPlant) => {
         try {
             setAdding(true);
+            console.log("Attempting to add plant:", JSON.stringify(plant, null, 2));
 
             const res = await fetchWithAuth("http://10.0.2.2:8000/api/plants/add-suggested/", {
                 method: "POST",
@@ -386,6 +388,7 @@ export default function SuggestedPlantsScreen() {
             });
 
             const raw = await res.text();
+            console.log(`Response status: ${res.status}, body:`, raw);
 
             if (res.status === 409) {
                 setConfirmOpen(false);
@@ -394,14 +397,26 @@ export default function SuggestedPlantsScreen() {
                 return;
             }
 
-            if (!res.ok) throw new Error(`Add suggested failed: ${res.status} ${raw}`);
+            if (!res.ok) {
+                let errorMsg = `Add suggested failed: ${res.status}`;
+                try {
+                    const errorData = JSON.parse(raw);
+                    const detail = errorData.detail || errorData.message || raw;
+                    errorMsg = `Error: ${detail}`;
+                } catch {
+                    errorMsg = `Error: ${raw || `HTTP ${res.status}`}`;
+                }
+                throw new Error(errorMsg);
+            }
 
             setConfirmOpen(false);
             setSelected(null);
 
             router.replace(MY_PLANTS_ROUTE);
         } catch (err) {
-            console.error("Failed to add suggested plant", err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.error("Failed to add suggested plant:", errorMessage);
+            Alert.alert("Failed to Add Plant", errorMessage);
         } finally {
             setAdding(false);
         }

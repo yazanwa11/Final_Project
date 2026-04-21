@@ -65,6 +65,10 @@ function getIcon(action: string) {
         return <Feather name="droplet" size={20} color="#3e7c52" />;
     if (action.includes("sun"))
         return <Feather name="sun" size={20} color="#f4c430" />;
+    if (action.includes("fert"))
+        return <Feather name="package" size={20} color="#4f9f5f" />;
+    if (action.includes("insect"))
+        return <Feather name="shield" size={20} color="#b3541e" />;
 
     return <Feather name="activity" size={20} color="#5f9c6c" />;
 }
@@ -78,7 +82,8 @@ function getHealthGrade(score: number, t: any) {
 
 export default function PlantDetailsScreen() {
     const { t, i18n } = useTranslation();
-    const { id } = useLocalSearchParams();
+    const { id: idParam } = useLocalSearchParams<{ id?: string | string[] }>();
+    const plantId = Array.isArray(idParam) ? idParam[0] : idParam;
     const [plant, setPlant] = useState<any>(null);
     const [logs, setLogs] = useState<any[]>([]);
     const [growthEntries, setGrowthEntries] = useState<any[]>([]);
@@ -111,8 +116,15 @@ export default function PlantDetailsScreen() {
 
     // LOAD DATA
     useEffect(() => {
+        if (!plantId) {
+            setPlant(null);
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
         loadAll();
-    }, []);
+    }, [plantId]);
 
     const syncPlantLocationFromDevice = async (token: string | null) => {
         if (!token) return;
@@ -385,7 +397,7 @@ export default function PlantDetailsScreen() {
         }
     };
 
-    const doAction = async (action: "Watered" | "Sunlight") => {
+    const doAction = async (action: "Watered" | "Sunlight" | "Fertilized" | "Insecticide") => {
         try {
             const token = await AsyncStorage.getItem("access");
 
@@ -404,6 +416,7 @@ export default function PlantDetailsScreen() {
                     ...prev,
                     last_watered: action === "Watered" ? now : prev.last_watered,
                     last_sunlight: action === "Sunlight" ? now : prev.last_sunlight,
+                    last_fertilized: action === "Fertilized" ? now : prev.last_fertilized,
                 }));
             }
 
@@ -515,6 +528,22 @@ export default function PlantDetailsScreen() {
                     >
                         <Feather name="sun" size={20} color="#fff" />
                         <Text style={styles.actionBtnText}>{t('plants.sunlight')}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.actionBtn, styles.fertBtn]}
+                        onPress={() => doAction("Fertilized")}
+                    >
+                        <Feather name="package" size={20} color="#fff" />
+                        <Text style={styles.actionBtnText}>{t('plants.fertilizer')}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.actionBtn, styles.insectBtn]}
+                        onPress={() => doAction("Insecticide")}
+                    >
+                        <Feather name="shield" size={20} color="#fff" />
+                        <Text style={styles.actionBtnText}>{t('plants.insecticide')}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -846,7 +875,9 @@ const styles = StyleSheet.create({
     // ACTION BUTTONS
     actionRow: {
         flexDirection: "row",
-        justifyContent: "space-around",
+        flexWrap: "wrap",
+        justifyContent: "space-between",
+        gap: 10,
         marginHorizontal: 20,
         marginBottom: 10,
     },
@@ -854,6 +885,8 @@ const styles = StyleSheet.create({
     actionBtn: {
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "center",
+        width: "48%",
         paddingVertical: 15,
         paddingHorizontal: 26,
         borderRadius: 20,
@@ -866,6 +899,8 @@ const styles = StyleSheet.create({
 
     waterBtn: { backgroundColor: "#2d6a4f" },
     sunBtn: { backgroundColor: "#52b788" },
+    fertBtn: { backgroundColor: "#4f9f5f" },
+    insectBtn: { backgroundColor: "#b3541e" },
 
     actionBtnText: {
         color: "#fff",

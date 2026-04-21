@@ -41,9 +41,8 @@ class Plant(models.Model):
     weather_opt_in = models.BooleanField(default=True)
     dynamic_watering_interval = models.IntegerField(default=3)
     last_weather_adjusted_at = models.DateTimeField(null=True, blank=True)
-    
-
-
+    fertilizing_interval = models.IntegerField(default=7)  # days
+    last_fertilized = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -119,6 +118,7 @@ class CareLog(models.Model):
     ACTION_CHOICES = [
         ("Watered", "Watered"),
         ("Fertilized", "Fertilized"),
+        ("Insecticide", "Insecticide"),
         ("Sunlight", "Sunlight"),
         ("Pruned", "Pruned"),
         ("Repotted", "Repotted"),

@@ -36,8 +36,8 @@ export default function AssistantScreen() {
     setBootLoading(false);
   }, []);
 
-  const send = async () => {
-    const message = text.trim();
+  const send = async (preset?: string) => {
+    const message = (preset ?? text).trim();
     if (!message || sending) return;
 
     const userMsg: ChatItem = {
@@ -47,7 +47,7 @@ export default function AssistantScreen() {
     };
 
     setItems((prev) => [...prev, userMsg]);
-    setText("");
+    if (!preset) setText("");
     setSending(true);
 
     try {
@@ -90,6 +90,10 @@ export default function AssistantScreen() {
     );
   }
 
+  const quickPrompts = [
+    t('assistant.quickPromptPests'),
+  ];
+
   return (
     <LinearGradient colors={["#f9faf9", "#e8f0eb", "#dae7df"]} style={{ flex: 1 }}>
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -113,6 +117,18 @@ export default function AssistantScreen() {
               <View style={styles.empty}>
                 <Text style={styles.emptyTitle}>{t('assistant.emptyTitle')}</Text>
                 <Text style={styles.emptyText}>{t('assistant.emptyText')}</Text>
+                <View style={styles.quickRow}>
+                  {quickPrompts.map((prompt) => (
+                    <Pressable
+                      key={prompt}
+                      style={styles.quickChip}
+                      onPress={() => send(prompt)}
+                      disabled={sending}
+                    >
+                      <Text style={styles.quickChipText}>{prompt}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
             }
             renderItem={({ item }) => (
@@ -179,6 +195,26 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 18, fontWeight: "800", color: "#1b4332", marginBottom: 8 },
   emptyText: { marginTop: 4, color: "#5f9c6c", textAlign: "center", fontSize: 14, lineHeight: 20 },
+  quickRow: {
+    marginTop: 14,
+    flexDirection: "row",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  quickChip: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "rgba(45,106,79,0.3)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  quickChipText: {
+    color: "#2d6a4f",
+    fontSize: 13,
+    fontWeight: "700",
+  },
 
   bubble: {
     borderRadius: 20,
