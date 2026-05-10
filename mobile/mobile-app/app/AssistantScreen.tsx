@@ -37,7 +37,8 @@ export default function AssistantScreen() {
   }, []);
 
   const send = async (preset?: string) => {
-    const message = (preset ?? text).trim();
+    const source = typeof preset === "string" ? preset : text;
+    const message = source.trim();
     if (!message || sending) return;
 
     const userMsg: ChatItem = {
@@ -159,7 +160,7 @@ export default function AssistantScreen() {
               textAlign={isRtl ? "right" : "left"}
               //writingDirection={isRtl ? "rtl" : "ltr"}
             />
-            <Pressable onPress={send} style={styles.sendBtn} disabled={sending}>
+            <Pressable onPress={() => send()} style={styles.sendBtn} disabled={sending}>
               {sending ? <ActivityIndicator color="#fff" /> : <Feather name="send" size={16} color="#fff" />}
             </Pressable>
           </View>

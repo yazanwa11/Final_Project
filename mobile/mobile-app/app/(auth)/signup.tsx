@@ -37,7 +37,24 @@ export default function SignupScreen() {
     }).start();
   };
 
+  const extractErrorMessage = (payload: any) => {
+    if (!payload) return t("auth.signupFailed");
+    if (typeof payload.detail === "string" && payload.detail.trim()) return payload.detail;
+    if (Array.isArray(payload.username) && payload.username[0]) return payload.username[0];
+    if (Array.isArray(payload.email) && payload.email[0]) return payload.email[0];
+    if (Array.isArray(payload.password) && payload.password[0]) return payload.password[0];
+    return t("auth.signupFailed");
+  };
+
   const handleSignup = async () => {
+    const username = name.trim();
+    const userEmail = email.trim();
+
+    if (!username || !userEmail || !password || !confirmPassword) {
+      alert(t("auth.signupFailed"));
+      return;
+    }
+
     if (password !== confirmPassword) {
       alert(t("auth.passwordsNotMatch"));
       return;
@@ -48,8 +65,8 @@ export default function SignupScreen() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: name,
-          email,
+          username,
+          email: userEmail,
           password,
           role: selectedRole,
         }),
@@ -62,9 +79,16 @@ export default function SignupScreen() {
             : "Your account was created successfully."
         );
         showSuccess();
-      } else {
-        alert(t("auth.signupFailed"));
+        return;
       }
+
+      let errorPayload: any = null;
+      try {
+        errorPayload = await response.json();
+      } catch {
+        errorPayload = null;
+      }
+      alert(extractErrorMessage(errorPayload));
     } catch {
       alert(t("auth.somethingWentWrong"));
     }

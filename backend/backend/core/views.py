@@ -258,12 +258,19 @@ def admin_user_update(request, user_id):
     if email is not None:
         user.email = email
 
+    role_changed_to_expert = False
     if role in {"user", "expert", "admin"}:
+        role_changed_to_expert = (profile.role != "expert" and role == "expert")
         profile.role = role
         if role in {"user", "admin"}:
             profile.expert_approval_status = "approved"
         elif role == "expert" and profile.expert_approval_status not in {"approved", "rejected"}:
             profile.expert_approval_status = "pending"
+
+    # If account is switched into expert role and no explicit approval status is supplied,
+    # require the regular admin review workflow.
+    if role_changed_to_expert and approval_status not in {"pending", "approved", "rejected"}:
+        profile.expert_approval_status = "pending"
 
     if approval_status in {"pending", "approved", "rejected"}:
         profile.expert_approval_status = approval_status

@@ -74,6 +74,40 @@ class UnitUserAndPermissionTests(TestCase):
 		permission = IsExpert()
 		self.assertFalse(permission.has_permission(request, view=None))
 
+	def test_is_expert_permission_denies_pending_expert(self):
+		user = User.objects.create_user(username="pending_expert_perm", password="StrongPass123!")
+		profile, _ = Profile.objects.get_or_create(user=user)
+		profile.role = "expert"
+		profile.expert_approval_status = "pending"
+		profile.save(update_fields=["role", "expert_approval_status"])
+		user = User.objects.get(pk=user.pk)
+
+		class DummyRequest:
+			pass
+
+		request = DummyRequest()
+		request.user = user
+
+		permission = IsExpert()
+		self.assertFalse(permission.has_permission(request, view=None))
+
+	def test_is_expert_permission_allows_approved_expert(self):
+		user = User.objects.create_user(username="approved_expert_perm", password="StrongPass123!")
+		profile, _ = Profile.objects.get_or_create(user=user)
+		profile.role = "expert"
+		profile.expert_approval_status = "approved"
+		profile.save(update_fields=["role", "expert_approval_status"])
+		user = User.objects.get(pk=user.pk)
+
+		class DummyRequest:
+			pass
+
+		request = DummyRequest()
+		request.user = user
+
+		permission = IsExpert()
+		self.assertTrue(permission.has_permission(request, view=None))
+
 class UnitPlantSerializerTests(TestCase):
 	def test_plant_serializer_uses_image_url_when_file_is_missing(self):
 		user = User.objects.create_user(username="plant_user", password="StrongPass123!")

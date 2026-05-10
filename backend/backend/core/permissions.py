@@ -3,11 +3,16 @@ from rest_framework.permissions import BasePermission
 class IsExpert(BasePermission):
     def has_permission(self, request, view):
         user = request.user
+        if not user or not user.is_authenticated or not hasattr(user, "profile"):
+            return False
+
+        profile = user.profile
+        if profile.role == "admin":
+            return True
+
         return bool(
-            user
-            and user.is_authenticated
-            and hasattr(user, "profile")
-            and user.profile.role in ("expert", "admin")
+            profile.role == "expert"
+            and profile.expert_approval_status == "approved"
         )
 
 
